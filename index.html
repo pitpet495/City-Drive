@@ -282,10 +282,9 @@
   })(20240611);
   const rr = (a, b) => a + (b - a) * rng();
   const pick = arr => arr[Math.floor(rng() * arr.length)];
-  const ur = (a, b) => a + (b - a) * Math.random();      // true random (spawn points)
+  const ur = (a, b) => a + (b - a) * Math.random();
   const wrapAngle = a => Math.atan2(Math.sin(a), Math.cos(a));
 
-  /* settings (persisted) */
   const settings = (() => {
     const def = { music: 100, sfx: 100, shadows: true, marks: true, shake: true };
     try { return Object.assign(def, JSON.parse(localStorage.getItem('citydrive.settings') || '{}')); }
@@ -320,8 +319,6 @@
   sun.shadow.bias = -0.0006;
   scene.add(sun); scene.add(sun.target);
   const SUN_OFFSET = new THREE.Vector3(-70, 120, 55);
-  // preallocated helpers that snap the shadow camera to whole texels,
-  // so the shadow map never shimmers or pops as you drive around
   const _lightView = new THREE.Matrix4();
   const _lightInv = new THREE.Matrix4();
   const _snapP = new THREE.Vector3();
@@ -330,14 +327,14 @@
   /* ---------------------------------------------------------------
      City layout constants
   --------------------------------------------------------------- */
-  const N = 4;            // blocks per side
-  const B = 40;           // block size
-  const R = 14;           // road width
-  const P = B + R;        // pitch
-  const HALF = (N * P + R) / 2;   // 115
-  const SW = 0.4;         // sidewalk height
-  const rc = i => -HALF + R / 2 + i * P;       // road centre line
-  const bc = i => -HALF + R + B / 2 + i * P;   // block centre
+  const N = 4;
+  const B = 40;
+  const R = 14;
+  const P = B + R;
+  const HALF = (N * P + R) / 2;
+  const SW = 0.4;
+  const rc = i => -HALF + R / 2 + i * P;
+  const bc = i => -HALF + R + B / 2 + i * P;
 
   const colliders = [];
   const matCache = {};
@@ -356,9 +353,6 @@
     return col;
   }
 
-  /* ---------------------------------------------------------------
-     Ground, asphalt, markings
-  --------------------------------------------------------------- */
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(1600, 1600).rotateX(-Math.PI / 2), lam(0x9dbb86));
   ground.position.y = -0.06; ground.receiveShadow = true; scene.add(ground);
 
@@ -378,15 +372,13 @@
     for (let i = 0; i <= N; i++) {
       for (let t = -HALF + 1.5; t < HALF; t += 6) {
         if (nearIntersection(t)) continue;
-        dashes.push([rc(i), t, 0]);       // vertical road
-        dashes.push([t, rc(i), Math.PI / 2]); // horizontal road
+        dashes.push([rc(i), t, 0]);
+        dashes.push([t, rc(i), Math.PI / 2]);
       }
     }
     for (let i = 0; i <= N; i++) for (let j = 0; j <= N; j++) {
       const ix = rc(i), iz = rc(j), off = R / 2 + 2.2;
-      const sides = [
-        [0, -1, j > 0], [0, 1, j < N], [-1, 0, i > 0], [1, 0, i < N]
-      ];
+      const sides = [[0, -1, j > 0], [0, 1, j < N], [-1, 0, i > 0], [1, 0, i < N]];
       for (const [sx, sz, ok] of sides) {
         if (!ok) continue;
         for (let s = -5.6; s <= 5.61; s += 1.4) {
@@ -407,9 +399,6 @@
     inst(zebraGeo, zebraMat, zebras, 0.035);
   })();
 
-  /* ---------------------------------------------------------------
-     Window texture + buildings
-  --------------------------------------------------------------- */
   const winTex = (function () {
     const c = document.createElement('canvas'); c.width = c.height = 128;
     const g = c.getContext('2d');
@@ -454,7 +443,7 @@
     scene.add(mesh);
 
     const top = SW + h;
-    box(w + 0.5, 0.8, d + 0.5, cx, top - 0.1, cz, trim);       // parapet
+    box(w + 0.5, 0.8, d + 0.5, cx, top - 0.1, cz, trim);
     const nAC = 1 + Math.floor(rng() * 3);
     for (let k = 0; k < nAC; k++) {
       const aw = rr(1.4, 3), ah = rr(0.8, 1.5), ad = rr(1.4, 3);
@@ -467,9 +456,6 @@
     addCollider(cx, cz, w, d);
   }
 
-  /* ---------------------------------------------------------------
-     Trees (instanced)
-  --------------------------------------------------------------- */
   const trees = [];
   function addTree(x, z, y, s, collide) {
     trees.push({ x, z, y, s });
@@ -492,14 +478,9 @@
     [trunks, canopies].forEach(m => { m.castShadow = true; m.receiveShadow = true; scene.add(m); });
   }
 
-  /* ---------------------------------------------------------------
-     Blocks
-  --------------------------------------------------------------- */
   function buildPark(cx, cz) {
-    // paths
     box(B - 4, 0.05, 3, cx, SW + 0.03, cz, 0xe6dcc3, false, true);
     box(3, 0.05, B - 4, cx, SW + 0.03, cz, 0xe6dcc3, false, true);
-    // pond
     const rim = new THREE.Mesh(new THREE.CylinderGeometry(7.2, 7.2, 0.3, 36), lam(0xcdc6b8));
     rim.position.set(cx, SW + 0.15, cz); rim.receiveShadow = true; rim.castShadow = true; scene.add(rim);
     const water = new THREE.Mesh(new THREE.CylinderGeometry(6.2, 6.2, 0.1, 36),
@@ -519,7 +500,7 @@
     const downtown = dist < 50;
     const tall = Math.max(0, 1 - dist / 125);
 
-    if (!downtown && rng() < 0.16) {           // one large low building
+    if (!downtown && rng() < 0.16) {
       const w = B - 6 - rr(0, 2), d = B - 6 - rr(0, 2);
       building(cx, cz, w, d, rr(7, 11), pick(TINTS), pick(TRIMS));
       return;
@@ -528,7 +509,7 @@
     for (let a = 0; a < 2; a++) for (let b = 0; b < 2; b++) {
       const lx = cx - B / 2 + 3 + a * (lot + 2) + lot / 2;
       const lz = cz - B / 2 + 3 + b * (lot + 2) + lot / 2;
-      if (!downtown && rng() < 0.12) {          // pocket garden
+      if (!downtown && rng() < 0.12) {
         box(lot, 0.12, lot, lx, SW + 0.06, lz, 0x86b36a, false, true);
         for (let k = 0; k < 3; k++) addTree(lx + rr(-5, 5), lz + rr(-5, 5), SW + 0.1, rr(0.8, 1.15), true);
         continue;
@@ -543,19 +524,11 @@
   function streetTrees(cx, cz, isPark) {
     if (isPark) return;
     for (const side of [-1, 1]) for (const t of [-12, 12]) {
-      if (rng() < 0.55) {
-        addTree(cx + side * (B / 2 - 1.4), cz + t, SW, rr(0.75, 1.0), true);
-      }
-      if (rng() < 0.55) {
-        addTree(cx + t, cz + side * (B / 2 - 1.4), SW, rr(0.75, 1.0), true);
-      }
+      if (rng() < 0.55) addTree(cx + side * (B / 2 - 1.4), cz + t, SW, rr(0.75, 1.0), true);
+      if (rng() < 0.55) addTree(cx + t, cz + side * (B / 2 - 1.4), SW, rr(0.75, 1.0), true);
     }
   }
 
-  /* ---------------------------------------------------------------
-     Car factory
-  --------------------------------------------------------------- */
-  // realistic licence plates: a few variants, picked per car
   const plateMats = (function () {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     const list = [];
@@ -601,7 +574,6 @@
   };
   const MODEL_KEYS = ['coupe', 'sedan', 'hatch'];
 
-  // wheel geometries are shared between every car of the same model
   const wheelGeoCache = {};
   function wheelGeos(R) {
     const k = R.toFixed(2);
@@ -668,14 +640,12 @@
       out.tailMat = new THREE.MeshBasicMaterial({ color: lightsOn ? 0x8a1212 : 0x4a1010 });
       [-1, 1].forEach(sx => add(chassis, new THREE.BoxGeometry(0.46, 0.13, 0.08), out.tailMat, sx * M.w * 0.34, M.bodyY + 0.08, -(M.len / 2 + 0.02)));
 
-      // turn indicators (amber) — blink when the car signals
       out.indMat = new THREE.MeshBasicMaterial({ color: 0x6b4a12 });
       [-1, 1].forEach(sx => {
         add(chassis, new THREE.BoxGeometry(0.15, 0.11, 0.07), out.indMat, sx * (M.w / 2 - 0.09), M.bodyY + 0.1, M.len / 2 + 0.04);
         add(chassis, new THREE.BoxGeometry(0.15, 0.11, 0.07), out.indMat, sx * (M.w / 2 - 0.09), M.bodyY + 0.1, -(M.len / 2 + 0.04));
       });
 
-      // licence plates (different random plate on every car)
       const plateMat = plateMats[Math.floor(Math.random() * plateMats.length)];
       add(chassis, new THREE.BoxGeometry(0.62, 0.17, 0.05), plateMat, 0, M.bodyY - 0.03, M.len / 2 + 0.095);
       add(chassis, new THREE.BoxGeometry(0.62, 0.17, 0.05), plateMat, 0, M.bodyY - 0.03, -(M.len / 2 + 0.095));
@@ -695,7 +665,6 @@
       });
 
       if (opts.ghost !== false) {
-        // Silhouette that only shows when a building hides the car
         const ghostMat = new THREE.MeshBasicMaterial({
           color: 0xffe066, transparent: true, opacity: 0.5,
           depthFunc: THREE.GreaterDepth, depthWrite: false, fog: false
@@ -712,7 +681,6 @@
     return out;
   }
 
-  // parked cars live in their own group so they can be re-shuffled on restart
   const parkedGroup = new THREE.Group();
   scene.add(parkedGroup);
   const parkedList = [];
@@ -726,7 +694,6 @@
       const off = B / 2 + 1.35;
       const model = MODEL_KEYS[Math.floor(R() * MODEL_KEYS.length)];
       const color = PARKED_COLORS[Math.floor(R() * PARKED_COLORS.length)];
-      // west / east curbs (cars point along Z)
       if (R() < 0.5) {
         const c = makeCar({ color, detailed: true, ghost: false, lightsOn: false, model });
         c.group.position.set(cx + side * off, 0, cz + t); c.group.rotation.y = along;
@@ -742,7 +709,6 @@
       }
     }
   }
-  // move the parked cars to new random curb spots (fresh layout on every restart)
   function reshuffleParked() {
     for (const c of parkedList) { parkedGroup.remove(c.group); disposeCar(c); }
     parkedList.length = 0;
@@ -754,9 +720,6 @@
     for (let bi = 0; bi < N; bi++) for (let bj = 0; bj < N; bj++) parkedCars(bc(bi), bc(bj));
   }
 
-  /* ---------------------------------------------------------------
-     Build the city
-  --------------------------------------------------------------- */
   const parks = new Set(['1,2', '2,1']);
   for (let bi = 0; bi < N; bi++) for (let bj = 0; bj < N; bj++) {
     const cx = bc(bi), cz = bc(bj);
@@ -767,7 +730,6 @@
     parkedCars(cx, cz);
   }
 
-  // perimeter hedge walls
   (function walls() {
     const T = 4, L = HALF * 2 + T * 2;
     const defs = [
@@ -780,7 +742,82 @@
     });
   })();
 
-  // scenery beyond the walls
+  const trafficLights = [];
+  const LIGHT_GREEN = 6, LIGHT_YELLOW = 1.5, LIGHT_RED = 0.5;
+  let lightClock = 0;
+
+  function createTrafficLights() {
+    const poleGeo = new THREE.CylinderGeometry(0.08, 0.1, 4.5, 8);
+    const poleMat = lam(0x2a2d33);
+    const housingGeo = new THREE.BoxGeometry(0.35, 1.0, 0.25);
+    const housingMat = lam(0x1a1c20);
+    const lightGeo = new THREE.SphereGeometry(0.12, 8, 8);
+    const glowGeo = new THREE.SphereGeometry(0.2, 8, 8);
+
+    for (let i = 0; i <= N; i++) {
+      for (let j = 0; j <= N; j++) {
+        const ix = rc(i), iz = rc(j);
+        
+        const twoOppositeLights = [
+          { x: ix + R / 2 + 1.2, z: iz - R / 2 - 1.5, rot: 0 },
+          { x: ix - R / 2 - 1.2, z: iz + R / 2 + 1.5, rot: Math.PI }
+        ];
+
+        for (const c of twoOppositeLights) {
+          const pole = new THREE.Mesh(poleGeo, poleMat);
+          pole.position.set(c.x, 2.25, c.z); pole.castShadow = true; scene.add(pole);
+
+          const housing = new THREE.Mesh(housingGeo, housingMat);
+          housing.position.set(c.x, 4.2, c.z); housing.rotation.y = c.rot; housing.castShadow = true; scene.add(housing);
+
+          const redMat = new THREE.MeshBasicMaterial({ color: 0x330000 });
+          const yellowMat = new THREE.MeshBasicMaterial({ color: 0x332200 });
+          const greenMat = new THREE.MeshBasicMaterial({ color: 0x003300 });
+
+          const red = new THREE.Mesh(lightGeo, redMat); red.position.set(c.x, 4.5, c.z); scene.add(red);
+          const yellow = new THREE.Mesh(lightGeo, yellowMat); yellow.position.set(c.x, 4.2, c.z); scene.add(yellow);
+          const green = new THREE.Mesh(lightGeo, greenMat); green.position.set(c.x, 3.9, c.z); scene.add(green);
+
+          const redGlow = new THREE.Mesh(glowGeo, new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0 }));
+          redGlow.position.set(c.x, 4.5, c.z); scene.add(redGlow);
+          const yellowGlow = new THREE.Mesh(glowGeo, new THREE.MeshBasicMaterial({ color: 0xffaa00, transparent: true, opacity: 0 }));
+          yellowGlow.position.set(c.x, 4.2, c.z); scene.add(yellowGlow);
+          const greenGlow = new THREE.Mesh(glowGeo, new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0 }));
+          greenGlow.position.set(c.x, 3.9, c.z); scene.add(greenGlow);
+
+          trafficLights.push({ red, yellow, green, redGlow, yellowGlow, greenGlow, x: c.x, z: c.z });
+        }
+      }
+    }
+  }
+
+  let nsState = 'green', ewState = 'red';
+  function updateTrafficLights(dt) {
+    lightClock += dt;
+    const cycle = 2 * (LIGHT_GREEN + LIGHT_YELLOW + LIGHT_RED);
+    const t = lightClock % cycle;
+
+    if (t < LIGHT_GREEN) { nsState = 'green'; ewState = 'red'; }
+    else if (t < LIGHT_GREEN + LIGHT_YELLOW) { nsState = 'yellow'; ewState = 'red'; }
+    else if (t < LIGHT_GREEN + LIGHT_YELLOW + LIGHT_RED) { nsState = 'red'; ewState = 'red'; }
+    else if (t < LIGHT_GREEN + LIGHT_YELLOW + LIGHT_RED + LIGHT_GREEN) { nsState = 'red'; ewState = 'green'; }
+    else if (t < LIGHT_GREEN + LIGHT_YELLOW + LIGHT_RED + LIGHT_GREEN + LIGHT_YELLOW) { nsState = 'red'; ewState = 'yellow'; }
+    else { nsState = 'red'; ewState = 'red'; }
+
+    for (const light of trafficLights) {
+      const isNS = Math.abs(light.x - Math.round(light.x / P) * P) < 1;
+      const state = isNS ? nsState : ewState;
+      light.red.material.color.setHex(state === 'red' ? 0xff0000 : 0x330000);
+      light.yellow.material.color.setHex(state === 'yellow' ? 0xffaa00 : 0x332200);
+      light.green.material.color.setHex(state === 'green' ? 0x00ff00 : 0x003300);
+      light.redGlow.material.opacity = state === 'red' ? 0.6 : 0;
+      light.yellowGlow.material.opacity = state === 'yellow' ? 0.6 : 0;
+      light.greenGlow.material.opacity = state === 'green' ? 0.6 : 0;
+    }
+  }
+
+  createTrafficLights();
+
   for (let k = 0; k < 120; k++) {
     const a = rng() * Math.PI * 2, rad = rr(HALF + 12, HALF + 90);
     const x = clamp(Math.cos(a) * rad * 1.1, -HALF - 110, HALF + 110), z = clamp(Math.sin(a) * rad * 1.1, -HALF - 110, HALF + 110);
@@ -789,11 +826,7 @@
   }
   buildTrees();
 
-  /* ---------------------------------------------------------------
-     Player car + skid marks
-  --------------------------------------------------------------- */
   let player = null;
-
   const MAX_MARKS = 1400;
   const markGeo = new THREE.PlaneGeometry(0.3, 1).rotateX(-Math.PI / 2);
   const markMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.32, depthWrite: false });
@@ -804,10 +837,8 @@
   marks.frustumCulled = false; marks.renderOrder = 2;
   scene.add(marks);
   let markIdx = 0, lastMarkX = 1e9, lastMarkZ = 1e9;
-  let wheelTrail = [null, null];   // last spot of each rear wheel, so segments join up
+  let wheelTrail = [null, null];
   function dropMark(x1, z1, x2, z2) {
-    // one continuous segment from (x1,z1) to (x2,z2). Consecutive segments
-    // overlap a little, so the drift line is one joined ribbon, not separate dashes.
     const dx = x2 - x1, dz = z2 - z1;
     const len = Math.hypot(dx, dz);
     if (len < 1e-4) return;
@@ -820,9 +851,6 @@
     marks.instanceMatrix.needsUpdate = true;
   }
 
-  /* ---------------------------------------------------------------
-     Input
-  --------------------------------------------------------------- */
   const keysKB = { left: false, right: false, up: false, down: false, hb: false };
   const keysPtr = { left: false, right: false, up: false, down: false, hb: false };
   const keyEls = {};
@@ -849,15 +877,11 @@
   window.addEventListener('blur', () => { for (const k in keysKB) { keysKB[k] = false; keysPtr[k] = false; } });
   const held = k => keysKB[k] || keysPtr[k];
 
-  /* ---------------------------------------------------------------
-     Audio (all synthesised with Web Audio, no files needed)
-  --------------------------------------------------------------- */
   const sfx = (function () {
     let ctx = null, sfxBus, musicBus, padBus, arpSend, noiseBuf;
     let eng = null, skid = null, lastImpact = 0;
     const state = { music: true, sfx: true, musicVol: settings.music / 100, sfxVol: settings.sfx / 100 };
     const MUSIC_LEVEL = 0.55;
-
     const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
 
     function init() {
@@ -867,10 +891,9 @@
       ctx = new AC();
       ctx.onstatechange = () => {
         if (ctx.state === 'running' && state.music && musicTimer) {
-          nextT = ctx.currentTime + 0.1; stepIdx = 0;   // start the groove cleanly once audio is live
+          nextT = ctx.currentTime + 0.1; stepIdx = 0;
         }
       };
-      // silent blip: helps iOS Safari fully unlock audio
       const blip = ctx.createBufferSource();
       blip.buffer = ctx.createBuffer(1, 1, 22050);
       blip.connect(ctx.destination); blip.start(0);
@@ -892,9 +915,7 @@
       ctx.resume();
     }
 
-    /* ---- engine + tyres ---- */
     function buildEngine() {
-      // 4-cylinder family car: low, mellow drone with a slightly uneven idle
       const o1 = ctx.createOscillator(); o1.type = 'sawtooth';
       const o2 = ctx.createOscillator(); o2.type = 'triangle';
       const g2 = ctx.createGain(); g2.gain.value = 0.4;
@@ -902,12 +923,10 @@
       const gain = ctx.createGain(); gain.gain.value = 0;
       o1.connect(lp); o2.connect(g2); g2.connect(lp); lp.connect(gain); gain.connect(sfxBus);
 
-      // gentle wobble in pitch so it doesn't sound like a pure synth
       const lfo = ctx.createOscillator(); lfo.frequency.value = 7;
       const lfoGain = ctx.createGain(); lfoGain.gain.value = 1.4;
       lfo.connect(lfoGain); lfoGain.connect(o1.frequency); lfoGain.connect(o2.frequency);
 
-      // soft intake / road rumble
       const nz = ctx.createBufferSource(); nz.buffer = noiseBuf; nz.loop = true;
       const nlp = ctx.createBiquadFilter(); nlp.type = 'lowpass'; nlp.frequency.value = 260;
       const ngain = ctx.createGain(); ngain.gain.value = 0;
@@ -916,12 +935,12 @@
       o1.start(); o2.start(); lfo.start(); nz.start();
       eng = { o1, o2, lp, gain, ngain };
     }
+
     function buildSkid() {
       const src = ctx.createBufferSource(); src.buffer = noiseBuf; src.loop = true;
       const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1600; bp.Q.value = 5;
       const bp2 = ctx.createBiquadFilter(); bp2.type = 'bandpass'; bp2.frequency.value = 700; bp2.Q.value = 3;
       const gain = ctx.createGain(); gain.gain.value = 0;
-      // fast warble so a handbrake screech sounds like real tyres
       const lfo = ctx.createOscillator(); lfo.frequency.value = 31;
       const lfoGain = ctx.createGain(); lfoGain.gain.value = 0;
       lfo.connect(lfoGain); lfoGain.connect(gain.gain);
@@ -932,7 +951,7 @@
       skid = { bp, bp2, gain, lfoGain };
     }
 
-    const GEARS = [0, 10, 18, 26, 34, 48];   // wide gears = relaxed revs, like a normal car
+    const GEARS = [0, 10, 18, 26, 34, 48];
     function update(speed, throttle, slip, hb) {
       if (!ctx || !eng) return;
       const t = ctx.currentTime;
@@ -946,7 +965,6 @@
       eng.lp.frequency.setTargetAtTime(240 + rpm * 520 + throttle * 140, t, 0.12);
       eng.gain.gain.setTargetAtTime(0.085 + rpm * 0.04 + throttle * 0.03, t, 0.12);
       eng.ngain.gain.setTargetAtTime(0.03 + clamp(speed / 40, 0, 1) * 0.07, t, 0.15);
-      // handbrake: sharper, higher-pitched screech that warbles like real tyres
       skid.gain.gain.setTargetAtTime(slip * (hb ? 0.21 : 0.15), t, 0.05);
       skid.bp.frequency.setTargetAtTime((hb ? 2350 : 1500) + slip * (hb ? 750 : 600) - speed * 10, t, 0.1);
       skid.bp.Q.setTargetAtTime(hb ? 7 : 5, t, 0.1);
@@ -973,7 +991,6 @@
       o.connect(og); og.connect(sfxBus); o.start(t); o.stop(t + 0.3);
     }
 
-    /* ---- music: a looping Am - F - C - G groove, generated live ---- */
     const BPM = 102, STEP = 60 / BPM / 4;
     const PROG = [
       { root: 45, ch: [57, 60, 64] },
@@ -1084,7 +1101,7 @@
       musicBus.gain.setTargetAtTime(state.music ? MUSIC_LEVEL * music : 0, ctx.currentTime, 0.08);
       applySfxGain();
     }
-    function setPaused(p) { sfxPaused = p; applySfxGain(); }   // music is untouched
+    function setPaused(p) { sfxPaused = p; applySfxGain(); }
 
     document.addEventListener('visibilitychange', () => {
       if (!ctx) return;
@@ -1094,9 +1111,6 @@
     return { init, update, impact, setMusic, setSfx, setPaused, setVolume, state };
   })();
 
-  // Browsers only allow sound after a gesture, so start on the first press or key
-  // Touch screens only count touchend/click as a "gesture", so listen for all of them
-  // and keep trying until the audio context is actually running.
   ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown'].forEach(ev =>
     window.addEventListener(ev, () => sfx.init(), true));
 
@@ -1111,10 +1125,6 @@
     });
   });
 
-  /* ---------------------------------------------------------------
-     Vehicle physics
-  --------------------------------------------------------------- */
-  // a random spot on a random road, facing along it (random spawn)
   function randomRoadPoint() {
     const vertical = Math.random() < 0.5;
     const i = Math.floor(Math.random() * (N + 1));
@@ -1129,8 +1139,7 @@
     x: spawn0.x, z: spawn0.z, h: spawn0.h, vx: 0, vz: 0,
     steer: 0, y: 0, spin: 0,
     pitch: 0, pitchV: 0, roll: 0, rollV: 0,
-    braking: false, reversing: false, vf: 0, vl: 0, accelLong: 0, yawRate: 0, hb: false,
-    crashPen: null
+    braking: false, reversing: false, vf: 0, vl: 0, accelLong: 0, yawRate: 0, hb: false
   };
   let WHEELBASE = 2.7, VMAX = 33, ENGINE = 15, BRAKE = 30, GRIP = 7.0, CAR_R = 0.95;
   let MAXLAT = 24, STEER_LOW = 0.55, STEER_HIGH = 0.11, STEER_RATE = 4.2, STAB = 6, CAR_OFF = 1.25;
@@ -1139,15 +1148,14 @@
   const carColors = { coupe: 0xe8322b, sedan: 0x2f6fe0, hatch: 0xf2c230 };
   let playerKey = 'coupe';
 
-  // Every stat bar in the car menu (1-10) feeds straight into these numbers
   function applySpec(key) {
     const m = CAR_MODELS[key], st = m.stats;
     VMAX = 20 + st.speed * 2;
     ENGINE = 8 + st.accel * 1.2;
     BRAKE = 14 + st.brake * 3;
-    STEER_LOW = 0.36 + st.handling * 0.022;   // a touch less lock: calmer, more normal turning
+    STEER_LOW = 0.36 + st.handling * 0.022;
     STEER_HIGH = 0.05 + st.handling * 0.008;
-    STEER_RATE = 2.5 + st.handling * 0.26;    // the wheel eases in instead of snapping
+    STEER_RATE = 2.5 + st.handling * 0.26;
     GRIP = 3.2 + st.grip * 0.6;
     MAXLAT = 14 + st.grip * 1.3;
     STAB = st.stability;
@@ -1168,12 +1176,9 @@
   setPlayerCar('coupe');
   let shake = 0;
 
-  /* ---------------------------------------------------------------
-     Traffic — other cars that drive, signal, brake and spin their wheels
-  --------------------------------------------------------------- */
   const TRAFFIC_N = 10;
-  const TURN_RHO = 7;          // turning radius
-  const LANE = 2.6;            // right-hand traffic lane offset
+  const TURN_RHO = 7;
+  const LANE = 2.6;
   const traffic = [];
   const trafficColors = [0x8a9099, 0x3f5b7a, 0xb8b4aa, 0x7a3b3b, 0x2f3b36,
                          0xc9b27a, 0x5a6f8c, 0xe2e0da, 0x4a7a5c, 0x9c6f8a];
@@ -1193,36 +1198,57 @@
   }
 
   function spawnTraffic(initial) {
-    for (let tries = 0; tries < 14; tries++) {
-      const p = randomRoadPoint();                       // random spawn spot
-      if (Math.hypot(p.x - car.x, p.z - car.z) < (initial ? 35 : 70)) continue;
-      if (!farFromAll(p.x, p.z, initial ? 9 : 16)) continue;
+    for (let tries = 0; tries < 20; tries++) {
+      const p = randomRoadPoint();
+
+      if (Math.hypot(p.x - car.x, p.z - car.z) < (initial ? 35 : 65)) continue;
+
+      let tooClose = false;
+      for (const t of traffic) {
+        if (Math.hypot(t.x - p.x, t.z - p.z) < 12) {
+          tooClose = true;
+          break;
+        }
+      }
+      if (tooClose) continue;
+
       const model = pick(MODEL_KEYS);
       const mesh = makeCar({ color: pick(trafficColors), detailed: true, model, ghost: false });
       mesh.group.position.set(p.x, 0, p.z);
       mesh.group.rotation.y = p.h;
       scene.add(mesh.group);
-      traffic.push({ mesh, x: p.x, z: p.z, h: p.h, spin: ur(0, 6),
+      
+      traffic.push({ 
+        mesh, x: p.x, z: p.z, h: p.h, spin: ur(0, 6),
         cruise: ur(7, 12), speed: 0, lat: LANE,
         nextKey: null, wantTurn: false, turnTo: null, signal: 0,
-        arc: null, braking: false, steerSmooth: 0, waitTime: 0, passOffset: 0, yielding: false });
+        isTurning: false, targetHeading: 0,
+        arc: null, braking: false, steerSmooth: 0, waitTime: 0, passOffset: 0, yielding: false,
+        waitingToTurn: false 
+      });
       return;
     }
   }
 
-  // the next intersection ahead of a car, and the distance to it
   function nextIntAhead(t) {
     const fx = Math.sin(t.h), fz = Math.cos(t.h);
     let best = null;
-    if (Math.abs(fz) >= Math.abs(fx)) {                 // on a vertical road
+
+    for (let i = 0; i <= N; i++) {
       for (let j = 0; j <= N; j++) {
-        const f = (rc(j) - t.z) * fz;
-        if (f > 0.5 && (!best || f < best.f)) best = { i: nearRc(t.x), j, f };
-      }
-    } else {                                            // on a horizontal road
-      for (let i = 0; i <= N; i++) {
-        const f = (rc(i) - t.x) * fx;
-        if (f > 0.5 && (!best || f < best.f)) best = { i, j: nearRc(t.z), f };
+        const ix = rc(i), iz = rc(j);
+        const dx = ix - t.x, dz = iz - t.z;
+        const f = dx * fx + dz * fz;
+
+        if (f > 0.5 && f < 35) {
+          const rx = -Math.cos(t.h), rz = Math.sin(t.h);
+          const lateral = Math.abs(dx * rx + dz * rz);
+          if (lateral < 3.5) {
+            if (!best || f < best.f) {
+              best = { i, j, f };
+            }
+          }
+        }
       }
     }
     return best;
@@ -1230,7 +1256,6 @@
 
   function decideTurn(t, ni) {
     t.wantTurn = false; t.turnTo = null; t.signal = 0;
-    // at the edge of the map the car has to turn (the hedge is right there)
     const mustTurn = (ni.j === N && Math.cos(t.h) > 0.5) || (ni.j === 0 && Math.cos(t.h) < -0.5) ||
                      (ni.i === N && Math.sin(t.h) > 0.5) || (ni.i === 0 && Math.sin(t.h) < -0.5);
     if (Math.random() < (mustTurn ? 1 : 0.45)) {
@@ -1240,25 +1265,19 @@
         if (Math.abs(fz) >= Math.abs(fx)) return fz > 0 ? HALF - t.z : t.z + HALF;
         return fx > 0 ? HALF - t.x : t.x + HALF;
       };
-      const left = room(hL) >= room(hR);                // take the roomier road
+      const left = room(hL) >= room(hR);
       t.turnTo = left ? hL : hR;
-      t.signal = left ? 1 : -1;                         // amber indicators on
+      t.signal = left ? 1 : -1;
       t.wantTurn = true;
     }
   }
 
   function startArc(t) {
-    const dir = Math.sign(wrapAngle(t.turnTo - t.h)) || 1;
-    const Lx = Math.cos(t.h), Lz = -Math.sin(t.h);      // driver's left
-    t.arc = {
-      cx: t.x + Lx * TURN_RHO * dir, cz: t.z + Lz * TURN_RHO * dir,
-      r0x: -Lx * TURN_RHO * dir, r0z: -Lz * TURN_RHO * dir,
-      ang: 0, total: dir * Math.PI / 2, h0: t.h
-    };
+    t.isTurning = true;
+    t.targetHeading = t.turnTo;
     t.wantTurn = false;
   }
 
-  // the closest thing in this car's path (player or another traffic car)
   function obstacleAhead(t, ox, oz, ovx, ovz) {
     const fx = Math.sin(t.h), fz = Math.cos(t.h);
     const rx = -Math.cos(t.h), rz = Math.sin(t.h);
@@ -1266,15 +1285,14 @@
     const d2 = dx * dx + dz * dz;
     if (d2 > 130) return null;
     const f = dx * fx + dz * fz, l = dx * rx + dz * rz;
-    if (f > -2.5 && f < 12 && Math.abs(l) < 2.4) return { f, d2 };                 // same lane ahead
-    if (f > -18 && f < -2 && Math.abs(l) > 2.8 && Math.abs(l) < 8) {          // oncoming lane
+    if (f > -2.5 && f < 12 && Math.abs(l) < 2.4) return { f, d2 };
+    if (f > -18 && f < -2 && Math.abs(l) > 2.8 && Math.abs(l) < 8) {
       const closing = (fx * t.speed - ovx) * fx + (fz * t.speed - ovz) * fz;
       if (closing > 3 && d2 < 80) return { f, d2, oncoming: true };
     }
     return null;
   }
 
-  // is another car already in the intersection I'm heading for?
   function intersectionOccupied(t, ni) {
     const ix = rc(ni.i), iz = rc(ni.j);
     for (const o of traffic) {
@@ -1282,13 +1300,12 @@
       if (Math.abs(o.x - ix) < R * 0.5 && Math.abs(o.z - iz) < R * 0.5) {
         const dO = Math.hypot(o.x - ix, o.z - iz);
         const dMe = Math.hypot(t.x - ix, t.z - iz);
-        if (dO < dMe - 1) return true;   // they're closer to the centre: they go first
+        if (dO < dMe - 1) return true;
       }
     }
     return false;
   }
 
-  // is the adjacent lane clear for passing? (side: -1 left, +1 right)
   function laneClear(t, side) {
     const rx = -Math.cos(t.h), rz = Math.sin(t.h);
     const lx = t.x + rx * side * 5, lz = t.z + rz * side * 5;
@@ -1304,7 +1321,6 @@
     return true;
   }
 
-  // which car (or the player) is the obstacle ahead?
   function carAhead(t, ob) {
     if (!ob) return null;
     if (!wrecked) {
@@ -1323,7 +1339,7 @@
     const blink = (performance.now() % 900) < 450;
     for (let i = traffic.length - 1; i >= 0; i--) {
       const t = traffic[i];
-      if (Math.hypot(t.x - car.x, t.z - car.z) > 240) {   // recycle far cars near the player
+      if (Math.hypot(t.x - car.x, t.z - car.z) > 240) {
         scene.remove(t.mesh.group); disposeCar(t.mesh); traffic.splice(i, 1); spawnTraffic(false);
         continue;
       }
@@ -1331,32 +1347,43 @@
       const fx = Math.sin(t.h), fz = Math.cos(t.h);
       const rx = -Math.cos(t.h), rz = Math.sin(t.h);
 
-      if (t.arc) {
-        // follow the turning arc through the intersection
-        const a = t.arc;
-        a.ang += (t.speed / TURN_RHO) * Math.sign(a.total) * dt;
-        if (Math.abs(a.ang) >= Math.abs(a.total)) a.ang = a.total;
-        const ca = Math.cos(a.ang), sa = Math.sin(a.ang);
-        t.x = a.cx + a.r0x * ca + a.r0z * sa;
-        t.z = a.cz - a.r0x * sa + a.r0z * ca;
-        t.h = wrapAngle(a.h0 + a.ang);
-        if (a.ang === a.total) { t.arc = null; t.turnTo = null; t.signal = 0; }
-      } else {
+      if (!t.isTurning) {
         const ni = nextIntAhead(t);
         if (ni) {
           const key = ni.i + ',' + ni.j;
           if (t.nextKey !== key) {
             if (ni.f < 18) { t.nextKey = key; decideTurn(t, ni); }
-          } else if (t.wantTurn && ni.f <= TURN_RHO - t.lat + 0.45 && ni.f > 0) {
-            startArc(t);
+          } else if (t.wantTurn && ni.f <= R / 2 + 1.5 && ni.f > 0) {
+            t.waitingToTurn = true;
           } else if (t.wantTurn && ni.f <= 0) {
             t.wantTurn = false; t.turnTo = null; t.signal = 0;
           }
-          // yield: don't enter an intersection another car is already in
           if (ni.f > 2 && intersectionOccupied(t, ni)) t.yielding = true;
           else if (ni.f > 8) t.yielding = false;
         }
-        // drive straight, and keep to the right-hand lane
+        if (t.waitingToTurn && ni && !intersectionOccupied(t, ni)) {
+          t.waitingToTurn = false;
+          startArc(t);
+        }
+      }
+
+      if (t.isTurning) {
+        const turnSpeed = t.cruise * 0.7;
+        t.speed += (turnSpeed - t.speed) * Math.min(1, 3 * dt);
+
+        const angleDiff = wrapAngle(t.targetHeading - t.h);
+        const steerRate = 2.2;
+        t.h += angleDiff * Math.min(1, steerRate * dt);
+        t.x += Math.sin(t.h) * t.speed * dt;
+        t.z += Math.cos(t.h) * t.speed * dt;
+
+        if (Math.abs(angleDiff) < 0.05) {
+          t.h = t.targetHeading;
+          t.isTurning = false;
+          t.turnTo = null;
+          t.signal = 0;
+        }
+      } else {
         t.x += fx * t.speed * dt;
         t.z += fz * t.speed * dt;
         const ii = nearRc(t.x), ij = nearRc(t.z);
@@ -1370,7 +1397,30 @@
         }
       }
 
-      // keep a safe gap behind the car (or person) ahead, like real driving
+      if (!t.isTurning) {
+        const ni = nextIntAhead(t);
+        if (ni && ni.f > 2 && ni.f < 18) {
+          const isNS = Math.abs(Math.sin(t.h)) > Math.abs(Math.cos(t.h));
+          const lightState = isNS ? nsState : ewState;
+          if (lightState === 'red') {
+            t.braking = true;
+            const targetSpeed = (ni.f < 10) ? 0 : Math.min(t.speed, 3);
+            t.speed += (targetSpeed - t.speed) * Math.min(1, 10 * dt);
+          }
+        }
+      }
+
+      if (!t.isTurning) {
+        const ni = nextIntAhead(t);
+        if (ni && ni.f > 2 && ni.f < 14) {
+          const zebraDist = ni.f - (R / 2 + 3.5);
+          if ((zebraDist > 0 && zebraDist < 4) || (zebraDist > -3 && zebraDist < 0)) {
+            t.braking = true;
+            t.speed = Math.max(0, t.speed - 18 * dt);
+          }
+        }
+      }
+
       t.braking = false;
       let ob = null;
       if (!wrecked) {
@@ -1381,32 +1431,33 @@
           if (r && (!ob || r.f < ob.f)) ob = r;
         }
       }
-      let target = t.arc ? t.cruise * 0.55 : t.cruise;
+      let target = t.isTurning ? t.cruise * 0.55 : t.cruise;
       if (ob) {
-        if (ob.oncoming) {                       // someone heading at us: crawl
+        if (ob.oncoming) {
           target = Math.min(target, t.speed * 0.15);
           t.braking = true;
         } else {
-          const gap = ob.f - 3.4;                // bumper-to-bumper room
-          const desired = 2.2 + t.speed * 0.5;   // faster = bigger gap
+          const gap = ob.f - 3.4;
+          const desired = 2.2 + t.speed * 0.5;
           if (gap < desired) {
             target = Math.max(0, (gap - desired) * 1.6 + t.speed * 0.5);
             t.braking = gap < desired * 0.6;
           }
         }
       }
-      // yield at intersections: wait for the other car to clear
       if (t.yielding) {
         target = 0;
         t.braking = true;
         t.waitTime += dt;
-        if (t.waitTime > 5) { t.yielding = false; t.waitTime = 0; }   // don't wait forever
+        if (t.waitTime > 5) { t.yielding = false; t.waitTime = 0; }
       }
-      // pass a stopped vehicle: wait a moment, then go around it
+      if (t.waitingToTurn) {
+        target = 0;
+        t.braking = true;
+      }
       if (ob && !ob.oncoming && ob.d2 < 30 && !t.yielding) {
         const ahead = carAhead(t, ob);
-        const stopped = ahead === 'player' ? Math.hypot(car.vx, car.vz) < 0.5
-                                           : (ahead && ahead.speed < 0.5);
+        const stopped = ahead === 'player' ? Math.hypot(car.vx, car.vz) < 0.5 : (ahead && ahead.speed < 0.5);
         if (stopped) {
           t.waitTime += dt;
           if (t.waitTime > 2) {
@@ -1422,7 +1473,6 @@
       t.speed += clamp(target - t.speed, -16 * dt, 5.5 * dt);
       if (t.speed < 0.01 && t.braking) t.speed = 0;
 
-      // gentle separation so the cars never overlap each other
       for (const o of traffic) {
         if (o === t) continue;
         const dx = o.x - t.x, dz = o.z - t.z;
@@ -1433,35 +1483,47 @@
         }
       }
 
-      // bump into the player = a crash
       if (!wrecked) {
+        const cm = CAR_MODELS[playerKey], tm = t.mesh.model;
+        const fx = Math.sin(car.h), fz = Math.cos(car.h);
+        const rx = -Math.cos(car.h), rz = Math.sin(car.h);
+        const tfx = Math.sin(t.h), tfz = Math.cos(t.h);
+        const trx = -Math.cos(t.h), trz = Math.sin(t.h);
         const dx = car.x - t.x, dz = car.z - t.z;
-        const d = Math.hypot(dx, dz), minD = CAR_R + 1.55;
-        if (d < minD && d > 1e-4) {
-          const nx = dx / d, nz = dz / d;
-          car.x += nx * (minD - d); car.z += nz * (minD - d);
+        const pHalfL = cm.len / 2, pHalfW = cm.w / 2;
+        const tHalfL = tm.len / 2, tHalfW = tm.w / 2;
+        const axes = [[fx, fz], [rx, rz], [tfx, tfz], [trx, trz]];
+        let minO = Infinity, minAx = null, colliding = true;
+        for (const [ax, az] of axes) {
+          const pExt = pHalfL * Math.abs(fx * ax + fz * az) + pHalfW * Math.abs(rx * ax + rz * az);
+          const tExt = tHalfL * Math.abs(tfx * ax + tfz * az) + tHalfW * Math.abs(trx * ax + trz * az);
+          const o = pExt + tExt - Math.abs(dx * ax + dz * az);
+          if (o <= 0) { colliding = false; break; }
+          if (o < minO) { minO = o; minAx = [ax, az]; }
+        }
+        if (colliding) {
+          const [ax, az] = minAx;
+          const side = (dx * ax + dz * az) >= 0 ? 1 : -1;
+          const nx = ax * side, nz = az * side;
+          car.x += nx * minO; car.z += nz * minO;
           const vn = car.vx * nx + car.vz * nz;
           if (vn < 0) {
-            const j = -0.8 * vn;   // softer bounce: the visual penetration does the rest
+            const j = -0.8 * vn;
             car.vx += nx * j; car.vz += nz * j;
             t.speed *= 0.7;
             shake = Math.max(shake, Math.min(1, j / 16));
             sfx.impact(j);
             registerCrash(j);
-            // visual: the player's front sinks into the other car (superficial, centred)
-            car.crashPen = { nx, nz, depth: 0.6, t: 0 };
           }
         }
       }
 
-      // visuals: body, spinning wheels, steering, lights, blinking indicators
       const g = t.mesh.group;
       g.position.set(t.x, 0, t.z);
       g.rotation.y = t.h;
       t.spin += (t.speed / t.mesh.model.wheelR) * dt;
       t.mesh.wheels.forEach(w => { w.rotation.x = t.spin; });
-      // wheels turn smoothly into the corner and ease back, like a real car
-      const steerTarget = t.arc ? Math.sign(t.arc.total) * 0.42 : 0;
+      const steerTarget = t.isTurning ? Math.sign(wrapAngle(t.targetHeading - t.h)) * 0.42 : 0;
       t.steerSmooth += clamp(steerTarget - t.steerSmooth, -3 * dt, 3 * dt);
       t.mesh.steerPivots.forEach(p => { p.rotation.y = t.steerSmooth; });
       t.mesh.tailMat.color.setHex(t.braking ? 0xff2a2a : 0x8a1212);
@@ -1471,16 +1533,12 @@
 
   for (let k = 0; k < TRAFFIC_N; k++) spawnTraffic(true);
 
-  // send every traffic car to a new random spot (fresh layout on every restart)
   function reshuffleTraffic() {
     for (const t of traffic) { scene.remove(t.mesh.group); disposeCar(t.mesh); }
     traffic.length = 0;
     for (let k = 0; k < TRAFFIC_N; k++) spawnTraffic(true);
   }
 
-  /* ---------------------------------------------------------------
-     Fire — what the car does after the third crash
-  --------------------------------------------------------------- */
   const fire = (function () {
     const FN = 110;
     const geo = new THREE.BufferGeometry();
@@ -1569,9 +1627,9 @@
 
   let crashes = 0, lastCrashT = 0;
   function registerCrash(j) {
-    if (j < 5.5 || wrecked) return;                 // only real crashes count
+    if (j < 5.5 || wrecked) return;
     const now = performance.now();
-    if (now - lastCrashT < 800) return;             // one crash at a time
+    if (now - lastCrashT < 800) return;
     lastCrashT = now;
     crashes = Math.min(3, crashes + 1);
     updateDamage();
@@ -1624,7 +1682,6 @@
     const up = held('up'), down = held('down'), hb = held('hb');
     const steerIn = (held('left') ? 1 : 0) - (held('right') ? 1 : 0);
 
-    // steering wheel angle: smooth, speed-sensitive, eases in like a real car
     const s = Math.min(1, Math.abs(vf0) / 26);
     const maxSteer = (STEER_LOW - (STEER_LOW - STEER_HIGH) * s) * (hb ? 1.2 : 1);
     const target = steerIn * maxSteer;
@@ -1632,7 +1689,6 @@
     car.steer += clamp(target - car.steer, -rate * dt, rate * dt);
     if (Math.abs(car.steer) > maxSteer) car.steer = Math.sign(car.steer) * maxSteer;
 
-    // longitudinal
     let a = 0, braking = false, reversing = false;
     if (up && !down) {
       if (vf0 < -0.6) { a = BRAKE; braking = true; }
@@ -1644,28 +1700,30 @@
       const c = 2.6 + 0.012 * vf0 * vf0;
       a = -Math.sign(vf0) * Math.min(Math.abs(vf0) / dt, c);
     }
-    if (car.y > 0.1) a -= vf0 * 0.9;   // sidewalk drag
-    if (hb) a -= Math.sign(vf0) * Math.min(Math.abs(vf0) / dt, 9.5);   // handbrake locks the rears: strong braking
+    if (car.y > 0.1) a -= vf0 * 0.9;
+    if (hb) a -= Math.sign(vf0) * Math.min(Math.abs(vf0) / dt, 9.5);
     let vf1 = vf0 + a * dt;
     if (braking && Math.sign(vf1) !== Math.sign(vf0)) vf1 = 0;
     car.vx += fx * (vf1 - vf0); car.vz += fz * (vf1 - vf0);
     car.accelLong += ((vf1 - vf0) / dt - car.accelLong) * Math.min(1, dt * 10);
     car.braking = braking; car.reversing = reversing;
 
-    // yaw from bicycle model, limited by tyre grip (handbrake lets the rear rotate)
+    if (settings.shake && (Math.abs(car.vf) > 25 || car.hb)) {
+      shake = Math.max(shake, 0.15);
+    }
+
     let yaw = (vf1 / WHEELBASE) * Math.tan(car.steer);
     const maxLat = hb ? MAXLAT * 1.9 : MAXLAT;
     if (Math.abs(vf1) > 1 && Math.abs(vf1 * yaw) > maxLat) yaw = Math.sign(yaw) * maxLat / Math.abs(vf1);
     car.yawRate = yaw;
     car.h += yaw * dt;
 
-    // re-project velocity on new heading, then apply lateral grip
     fx = Math.sin(car.h); fz = Math.cos(car.h); rx = -Math.cos(car.h); rz = Math.sin(car.h);
     let vf2 = car.vx * fx + car.vz * fz;
     let vl2 = car.vx * rx + car.vz * rz;
     let grip = GRIP;
-    if (hb) grip = 0.9;   // handbrake locks the rear: the car slides and drifts
-    else if (braking && Math.abs(vf2) > 8 && Math.abs(car.steer) > 0.05) grip = 3.0;   // rear steps out when braking in a turn
+    if (hb) grip = 0.9;
+    else if (braking && Math.abs(vf2) > 8 && Math.abs(car.steer) > 0.05) grip = 3.0;
     vl2 *= Math.exp(-grip * dt);
     car.vx = fx * vf2 + rx * vl2; car.vz = fz * vf2 + rz * vl2;
     car.vf = vf2; car.vl = vl2;
@@ -1674,10 +1732,8 @@
     car.x += car.vx * dt; car.z += car.vz * dt;
     collide();
 
-    // ride height (curb / sidewalk)
     car.y += (groundHeight(car.x, car.z) - car.y) * Math.min(1, dt * 14);
 
-    // body pitch & roll spring
     const pT = clamp(-car.accelLong * 0.0035, -0.075, 0.075);
     const latAcc = vf2 * yaw - vl2 * 0.0;
     const rT = clamp(latAcc * 0.0030 * (1.4 - STAB * 0.09), -0.11, 0.11);
@@ -1686,15 +1742,11 @@
     car.spin += (vf2 / 0.39) * dt;
   }
 
-  /* ---------------------------------------------------------------
-     Pause menu + car selection
-  --------------------------------------------------------------- */
   let paused = false, dirty = true, view = 'menu';
   const $ = id => document.getElementById(id);
   const pauseEl = $('pause'), btnPause = $('tglPause');
   const views = { menu: $('menuView'), garage: $('garageView'), settings: $('settingsView') };
 
-  /* ---------- damage + wrecked (3 crashes) ---------- */
   let wrecked = false;
   const wreckEl = $('wreck');
   const dmgEls = document.querySelectorAll('#dmg i');
@@ -1764,7 +1816,6 @@
     refreshPreviewCar(); renderGarage(); dirty = true;
   }
 
-  /* second, small renderer that shows the car on a turntable */
   let pv = null;
   function initPreview() {
     if (pv) return;
@@ -1815,18 +1866,18 @@
     btnPause.setAttribute('aria-pressed', String(on));
     for (const k in keysKB) keysKB[k] = false;
     for (const k in keysPtr) keysPtr[k] = false;
-    sfx.setPaused(on);          // engine, tyres and crashes go quiet; background music keeps playing
+    sfx.setPaused(on);
     if (on) showView('menu');
   }
 
   function resetGame() {
-    const sp = randomRoadPoint();                 // random spawn every time
+    const sp = randomRoadPoint();
     Object.assign(car, { x: sp.x, z: sp.z, h: sp.h, vx: 0, vz: 0, steer: 0, y: 0, spin: 0,
       pitch: 0, pitchV: 0, roll: 0, rollV: 0, accelLong: 0, vf: 0, vl: 0, yawRate: 0,
-      braking: false, reversing: false, hb: false, crashPen: null });
+      braking: false, reversing: false, hb: false });
     shake = 0;
-    reshuffleTraffic();        // the moving cars get new random spots
-    reshuffleParked();         // the parked cars get new random curb spots
+    reshuffleTraffic();
+    reshuffleParked();
     const z = new THREE.Object3D(); z.scale.setScalar(0); z.updateMatrix();
     for (let i = 0; i < MAX_MARKS; i++) marks.setMatrixAt(i, z.matrix);
     marks.instanceMatrix.needsUpdate = true;
@@ -1849,7 +1900,6 @@
   $('carPrev').addEventListener('click', () => cycleCar(-1));
   $('carNext').addEventListener('click', () => cycleCar(1));
 
-  // settings: volumes + toggles, all saved
   const volMusic = $('volMusic'), volSfx = $('volSfx');
   volMusic.value = settings.music; volSfx.value = settings.sfx;
   $('volMusicV').textContent = settings.music; $('volSfxV').textContent = settings.sfx;
@@ -1885,37 +1935,21 @@
   });
   window.addEventListener('resize', () => { dirty = true; if (pv && view === 'garage') sizePreview(); });
 
-  /* ---------------------------------------------------------------
-     Visual update
-  --------------------------------------------------------------- */
   const camTarget = new THREE.Vector3(car.x, 0, car.z);
   const spdEl = document.getElementById('spd');
   let hudTimer = 0;
 
   function updateVisuals(dt) {
     const g = player.group;
-    // visual penetration: on a crash the car's front sinks into the other car
-    let px = car.x, pz = car.z, penTilt = 0;
-    if (car.crashPen) {
-      car.crashPen.t += dt;
-      const f = Math.max(0, 1 - car.crashPen.t / 0.7);
-      if (f <= 0) car.crashPen = null;
-      else {
-        px -= car.crashPen.nx * car.crashPen.depth * f;
-        pz -= car.crashPen.nz * car.crashPen.depth * f;
-        penTilt = 0.12 * f;   // slight nose-down crumple
-      }
-    }
-    g.position.set(px, car.y, pz);
+    g.position.set(car.x, car.y, car.z);
     g.rotation.y = car.h;
-    player.chassis.rotation.x = car.pitch + penTilt;
+    player.chassis.rotation.x = car.pitch;
     player.chassis.rotation.z = car.roll;
     player.wheels.forEach(w => { w.rotation.x = car.spin; });
     player.steerPivots.forEach(p => { p.rotation.y = car.steer; });
     player.tailMat.color.setHex((car.braking || (held('down') && car.vf > 0.6)) ? 0xff2a2a : (car.reversing ? 0xf2f2f2 : 0x8a1212));
 
-    // skid marks — one joined ribbon per rear wheel, not separate dashes
-    const slipping = Math.abs(car.vl) > 1.0 || (car.braking && Math.abs(car.vf) > 9);
+    const slipping = car.hb && Math.abs(car.vf) > 3;
     if (slipping && car.y < 0.1) {
       const dx = car.x - lastMarkX, dz = car.z - lastMarkZ;
       if (dx * dx + dz * dz > 0.04) {
@@ -1934,7 +1968,6 @@
       wheelTrail[0] = wheelTrail[1] = null;
     }
 
-    // camera: aerial, smoothly follows with a lead in the direction of travel
     const speed = Math.hypot(car.vx, car.vz);
     const sf = clamp(speed / VMAX, 0, 1);
     const lead = 0.32;
@@ -1948,8 +1981,6 @@
     camera.position.set(camTarget.x + sx, camH, camTarget.z + camD + sz);
     camera.lookAt(camTarget.x, 0, camTarget.z);
 
-    // sun follows the car, snapped to whole shadow texels so the
-    // shadows stay glued to the ground and never pop or shimmer
     sun.position.set(car.x + SUN_OFFSET.x, SUN_OFFSET.y, car.z + SUN_OFFSET.z);
     sun.target.position.set(car.x, 0, car.z);
     const texel = (sc.right - sc.left) / sun.shadow.mapSize.x;
@@ -1968,13 +1999,11 @@
     sun.position.copy(_snapP).add(SUN_OFFSET);
     sun.target.updateMatrixWorld();
 
-    // engine + tyre audio
     let slipAmt = car.y < 0.1 ? clamp((Math.abs(car.vl) - 2) / 5, 0, 1) : 0;
     if (car.braking && Math.abs(car.vf) > 9 && car.y < 0.1) slipAmt = Math.max(slipAmt, 0.6);
     if (car.hb && Math.abs(car.vf) > 4 && car.y < 0.1) slipAmt = Math.max(slipAmt, 0.85);
     sfx.update(speed, (held('up') || held('down')) ? 1 : 0, slipAmt, car.hb);
 
-    // HUD + pressed states
     hudTimer += dt;
     if (hudTimer > 0.06) { hudTimer = 0; spdEl.textContent = Math.round(speed * 3.6); }
     for (const kk in keyEls) keyEls[kk].classList.toggle('pressed', held(kk));
@@ -2001,29 +2030,26 @@
   window.addEventListener('resize', onResize);
   onResize();
 
-  /* ---------------------------------------------------------------
-     Main loop
-  --------------------------------------------------------------- */
   let last = performance.now();
   camTarget.set(car.x, 0, car.z);
+  renderer.render(scene, camera);
   function frame(now) {
     requestAnimationFrame(frame);
     const dt = Math.min(0.05, Math.max(0.001, (now - last) / 1000));
     last = now;
     if (paused) {
-      // world is frozen: draw it once (and again if something changed), plus the car preview if open
       if (dirty) { renderer.render(scene, camera); dirty = false; }
       if (view === 'garage' && pv) previewTick(dt);
       return;
     }
     if (wrecked) {
-      // the car is on fire: keep the flames going until you restart
       fire.update(dt);
       renderer.render(scene, camera);
       return;
     }
     const n = Math.ceil(dt / (1 / 90));
     for (let i = 0; i < n; i++) step(dt / n);
+    updateTrafficLights(dt);
     updateTraffic(dt);
     updateVisuals(dt);
     renderer.render(scene, camera);
