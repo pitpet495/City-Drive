@@ -658,12 +658,13 @@
       const WG = wheelGeos(R);
       const tyreMat = lam(0x1a1c1f), rimMat = lam(0xc9ccd1);
       [[-1, 1], [1, 1], [-1, -1], [1, -1]].forEach(([sx, sz]) => {
-        const steer = new THREE.Group(); steer.position.set(sx * M.wheelX, R, sz * M.wheelZ);
+        const wheelPosZ = sz > 0 ? sz * M.wheelZ * 0.92 : sz * M.wheelZ;
+        const steer = new THREE.Group(); steer.position.set(sx * M.wheelX, R, wheelPosZ);
         const spin = new THREE.Group(); steer.add(spin);
         const t = add(spin, WG.tyre, tyreMat, 0, 0, 0); t.rotation.z = Math.PI / 2;
         const r = add(spin, WG.rim, rimMat, 0, 0, 0); r.rotation.z = Math.PI / 2;
         add(spin, WG.spoke, darkMat, 0, 0, 0);
-        g.add(steer);
+        chassis.add(steer);
         out.wheels.push(spin);
         if (sz > 0) out.steerPivots.push(steer);
       });
@@ -689,7 +690,6 @@
   scene.add(parkedGroup);
   const PARKED_COLORS = [0x8a9099, 0x3f5b7a, 0xb8b4aa, 0x7a3b3b, 0x2f3b36, 0xc9b27a, 0x5a6f8c, 0xe2e0da];
 
-  // Parked cars are real rigid bodies: mass, spin, sliding friction, and they shove each other.
   function addParked(model, color, x, z, h) {
     const m = CAR_MODELS[model];
     const c = makeCar({ color, detailed: true, ghost: false, lightsOn: false, model });
@@ -748,58 +748,84 @@
   --------------------------------------------------------------- */
   const LIGHT_GREEN = 6, LIGHT_YELLOW = 1.5, LIGHT_RED = 0.5;
   let lightClock = 0;
-  let xState = 'red', zState = 'green';     // what drivers travelling along X / along Z see
+  let xState = 'red', zState = 'green';
   const lampMats = { x: {}, z: {} }, glowMats = { x: {}, z: {} };
-  const STOP_F = 13.3;                      // stop line: distance from the junction centre to the car's centre
+  const STOP_F = 13.3;
   const LIGHT_COLORS = { red: [0xff0000, 0x330000], yellow: [0xffaa00, 0x332200], green: [0x00ff00, 0x003300] };
 
   function signalFor(h) { return Math.abs(Math.sin(h)) > Math.abs(Math.cos(h)) ? xState : zState; }
 
   function createTrafficLights() {
     const spots = [];
-    const o = R / 2 + 1.2, a = R / 2 + 1.5;
-    for (let i = 0; i <= N; i++) for (let j = 0; j <= N; j++) {
-      const ix = rc(i), iz = rc(j);
-      const defs = [
-        { axis: 'z', hx: 0, hz: 1, x: ix - o, z: iz - a },     // travelling +z
-        { axis: 'z', hx: 0, hz: -1, x: ix + o, z: iz + a },    // travelling -z
-        { axis: 'x', hx: 1, hz: 0, x: ix - a, z: iz + o },     // travelling +x
-        { axis: 'x', hx: -1, hz: 0, x: ix + a, z: iz - o }     // travelling -x
-      ];
-      for (const s of defs) {
-        if (groundHeight(s.x, s.z) === 0) {      // no pavement on the right (edge of town): use the far side
-          if (s.axis === 'z') s.x = 2 * ix - s.x; else s.z = 2 * iz - s.z;
+    const stopOffset = R / 2 + 1.8;
+    const rightSide = R / 2 + 1.2;
+
+    for (let i = 0; i <= N; i++) {
+      for (let j = 0; j <= N; j++) {
+        const ix = rc(i), iz = rc(j);
+
+        const defs = [
+          { axis: 'z', hx: 0, hz: 1,  rot: 0,           x: ix - rightSide, z: iz - stopOffset },
+          { axis: 'z', hx: 0, hz: -1, rot: Math.PI,     x: ix + rightSide, z: iz + stopOffset },
+          { axis: 'x', hx: 1, hz: 0,  rot: Math.PI / 2, x: ix - stopOffset, z: iz + rightSide },
+          { axis: 'x', hx: -1, hz: 0, rot: -Math.PI/2,  x: ix + stopOffset, z: iz - rightSide }
+        ];
+
+        for (const s of defs) {
           if (groundHeight(s.x, s.z) === 0) continue;
+          spots.push(s);
         }
-        spots.push(s);
       }
     }
+
     const dummy = new THREE.Object3D();
     const poles = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.08, 0.1, 4.5, 8).translate(0, 2.25, 0), lam(0x2a2d33), spots.length);
     const housings = new THREE.InstancedMesh(new THREE.BoxGeometry(0.35, 1.0, 0.25).translate(0, 4.2, 0), lam(0x1a1c20), spots.length);
+    
     spots.forEach((s, k) => {
-      dummy.position.set(s.x, SW, s.z); dummy.rotation.set(0, 0, 0); dummy.updateMatrix(); poles.setMatrixAt(k, dummy.matrix);
-      dummy.rotation.set(0, s.axis === 'x' ? Math.PI / 2 : 0, 0); dummy.updateMatrix(); housings.setMatrixAt(k, dummy.matrix);
-      addCollider(s.x, s.z, 0.4, 0.4);          // steel poles are solid
+      dummy.position.set(s.x, SW, s.z); 
+      dummy.rotation.set(0, 0, 0); 
+      dummy.updateMatrix(); 
+      poles.setMatrixAt(k, dummy.matrix);
+      dummy.rotation.set(0, s.rot, 0); 
+      dummy.updateMatrix(); 
+      housings.setMatrixAt(k, dummy.matrix);
+
+      addCollider(s.x, s.z, 0.4, 0.4);
     });
+    
     [poles, housings].forEach(m => { m.castShadow = true; m.frustumCulled = false; scene.add(m); });
 
     const lampGeo = new THREE.SphereGeometry(0.12, 8, 8), glowGeo = new THREE.SphereGeometry(0.2, 8, 8);
     const heights = { red: 4.5, yellow: 4.2, green: 3.9 };
+
     for (const axis of ['x', 'z']) {
       const mine = spots.filter(s => s.axis === axis);
+      if (mine.length === 0) continue;
+
       for (const c of ['red', 'yellow', 'green']) {
         lampMats[axis][c] = new THREE.MeshBasicMaterial({ color: LIGHT_COLORS[c][1] });
         glowMats[axis][c] = new THREE.MeshBasicMaterial({ color: LIGHT_COLORS[c][0], transparent: true, opacity: 0, depthWrite: false });
         const lamp = new THREE.InstancedMesh(lampGeo, lampMats[axis][c], mine.length);
         const glow = new THREE.InstancedMesh(glowGeo, glowMats[axis][c], mine.length);
+
         mine.forEach((s, k) => {
-          // lamps sit on the face of the housing that looks at the approaching driver
-          dummy.position.set(s.x - s.hx * 0.16, SW + heights[c], s.z - s.hz * 0.16); dummy.rotation.set(0, 0, 0); dummy.updateMatrix();
-          lamp.setMatrixAt(k, dummy.matrix); glow.setMatrixAt(k, dummy.matrix);
+          const offsetDist = 0.14;
+          const lx = s.x - Math.sin(s.rot) * offsetDist;
+          const lz = s.z - Math.cos(s.rot) * offsetDist;
+
+          dummy.position.set(lx, SW + heights[c], lz);
+          dummy.rotation.set(0, s.rot, 0);
+          dummy.updateMatrix();
+
+          lamp.setMatrixAt(k, dummy.matrix);
+          glow.setMatrixAt(k, dummy.matrix);
         });
-        lamp.frustumCulled = false; glow.frustumCulled = false;
-        scene.add(lamp); scene.add(glow);
+
+        lamp.frustumCulled = false; 
+        glow.frustumCulled = false;
+        scene.add(lamp); 
+        scene.add(glow);
       }
     }
   }
@@ -883,7 +909,7 @@
       g.beginPath(); g.arc(64, 48, 6, 0, 7); g.fill();
       g.beginPath(); g.moveTo(64, 56); g.lineTo(62, 76); g.moveTo(63, 62); g.lineTo(52, 72); g.moveTo(63, 62); g.lineTo(75, 68);
       g.moveTo(62, 76); g.lineTo(54, 91); g.moveTo(62, 76); g.lineTo(72, 91); g.stroke();
-    } else {   // parking
+    } else {
       g.fillStyle = '#1d5fb8'; g.fillRect(0, 0, 128, 128);
       g.strokeStyle = '#fff'; g.lineWidth = 5; g.strokeRect(7, 7, 114, 114);
       text('P', 88, '#fff', 68);
@@ -903,18 +929,18 @@
     const blocked = (x, z) => colliders.some(c => x > c.minX - 1.1 && x < c.maxX + 1.1 && z > c.minZ - 1.1 && z < c.maxZ + 1.1);
     for (let line = 0; line <= N; line++) for (let k = 0; k < N; k++) for (const d of [1, -1]) {
       const di = d > 0 ? 0 : 1;
-      const a0 = d > 0 ? rc(k) : rc(k + 1);           // junction the traffic has just left
+      const a0 = d > 0 ? rc(k) : rc(k + 1);
       const outer = line === 0 || line === N;
       const slots = [];
-      if ((k + di) % 2 === 0) slots.push([11.5, outer ? 'speed50' : 'speed30']);   // just after the junction
-      else slots.push([L - 28, 'signal']);                                          // warning, well before the next one
-      slots.push([L - 10.8, 'ped']);                                                // right before the zebra crossing
+      if ((k + di) % 2 === 0) slots.push([11.5, outer ? 'speed50' : 'speed30']);
+      else slots.push([L - 28, 'signal']);
+      slots.push([L - 10.8, 'ped']);
       if ((line * 3 + k * 5 + di * 7) % 4 === 0) slots.push([L / 2 + 6, 'park']);
       for (const [sd, type] of slots) {
         const u = a0 + d * sd;
-        const vx = rc(line) - d * off;                // vertical road: right-hand side of travel along z
+        const vx = rc(line) - d * off;
         if (groundHeight(vx, u) > 0 && !blocked(vx, u)) out.push({ type, x: vx, z: u, face: d > 0 ? Math.PI : 0 });
-        const hz = rc(line) + d * off;                // horizontal road: right-hand side of travel along x
+        const hz = rc(line) + d * off;
         if (groundHeight(u, hz) > 0 && !blocked(u, hz)) out.push({ type, x: u, z: hz, face: -d * Math.PI / 2 });
       }
     }
@@ -1119,7 +1145,6 @@
       o.connect(og); og.connect(sfxBus); o.start(t); o.stop(t + 0.3);
     }
 
-    // metal sign hit / sign clattering on the road
     function clank(sp) {
       if (!ctx || !state.sfx) return;
       const t = ctx.currentTime, v = clamp(sp / 20, 0.2, 1);
@@ -1288,7 +1313,7 @@
   let WHEELBASE = 2.7, VMAX = 33, ENGINE = 15, BRAKE = 30, GRIP = 7.0, CAR_R = 0.95;
   let MAXLAT = 24, STEER_LOW = 0.55, STEER_HIGH = 0.11, STEER_RATE = 4.2, STAB = 6, CAR_OFF = 1.25;
   const VREV = 9;
-  const PB = { x: 0, z: 0, vx: 0, vz: 0, w: 0, invM: 1 / 1350, invI: 1 / 2400 };   // player as a rigid body for car-to-car hits
+  const PB = { x: 0, z: 0, vx: 0, vz: 0, w: 0, invM: 1 / 1350, invI: 1 / 2400 };
 
   const carColors = { coupe: 0xe8322b, sedan: 0x2f6fe0, hatch: 0xf2c230 };
   let playerKey = 'coupe';
@@ -1324,7 +1349,7 @@
 
   const TRAFFIC_N = 10;
   const TURN_RHO = 7;
-  const TURN_START = 7.4;   // distance to the junction centre at which a turn begins
+  const TURN_START = 7.4;
   const LANE = 2.6;
   const traffic = [];
   const trafficColors = [0x8a9099, 0x3f5b7a, 0xb8b4aa, 0x7a3b3b, 0x2f3b36,
@@ -1419,19 +1444,16 @@
     }
   }
 
-  // A turn follows a smooth curve from where the car is to the centre of the correct lane on the new road,
-  // leaving along the new heading. (Previously the heading was eased towards the target, which swung wide
-  // and then dragged the car sideways back into its lane.)
   function startArc(t, ni) {
     const cx = rc(ni.i), cz = rc(ni.j), ht = t.turnTo;
     const fx = Math.sin(t.h), fz = Math.cos(t.h);
     const gx = Math.sin(ht), gz = Math.cos(ht);
-    const grx = -Math.cos(ht), grz = Math.sin(ht);                 // right-hand side of the new heading
+    const grx = -Math.cos(ht), grz = Math.sin(ht);
     const ex = cx + gx * (R / 2 + 1.2) + grx * LANE;
     const ez = cz + gz * (R / 2 + 1.2) + grz * LANE;
     const dF = Math.max(2.5, (ex - t.x) * fx + (ez - t.z) * fz);
     const dR = Math.max(2.5, (ex - t.x) * gx + (ez - t.z) * gz);
-    const K = 0.5523;                                              // cubic approximation of a quarter ellipse
+    const K = 0.5523;
     t.bz = { x0: t.x, z0: t.z, x1: t.x + fx * dF * K, z1: t.z + fz * dF * K,
              x2: ex - gx * dR * K, z2: ez - gz * dR * K, x3: ex, z3: ez, u: 0 };
     t.isTurning = true; t.targetHeading = ht; t.wantTurn = false; t.waitingToTurn = false;
@@ -1567,15 +1589,12 @@
         }
       }
 
-      // Signals: stop at the line on red (and on yellow if there is room to stop); once past the line, keep going.
       let lightCap = Infinity;
       if (!t.isTurning && ni0) {
         const dStop = ni0.f - STOP_F;
-        // A car that is still crawling just past the line (shoved by the queue behind it) is still held.
         if (dStop > -1.0 || (t.speed < 2.5 && dStop > -4.0)) {
           const st = signalFor(t.h);
           const brakeDist = t.speed * t.speed / 10;
-          // On yellow, only carry on if too fast to stop AND quick enough to clear the junction.
           const stopOnYellow = st === 'yellow' && (brakeDist < dStop + 0.5 || t.speed < 6.5);
           if (st === 'red' || stopOnYellow) {
             lightCap = dStop < 0.4 ? 0 : Math.sqrt(10 * dStop);
@@ -1621,7 +1640,7 @@
         target = 0;
         t.braking = true;
       }
-      if (!t.isTurning && ni0 && t.wantTurn && ni0.f < 24) target = Math.min(target, 5.4);   // slow down for the turn
+      if (!t.isTurning && ni0 && t.wantTurn && ni0.f < 24) target = Math.min(target, 5.4);
       target = Math.min(target, lightCap);
       if (lightCap < t.speed - 0.3) t.braking = true;
       if (ob && !ob.oncoming && ob.d2 < 30 && !t.yielding) {
@@ -1817,7 +1836,7 @@
           const qx = clamp(cx, b.minX, b.maxX), qz = clamp(cz, b.minZ, b.maxZ);
           const dx = cx - qx, dz = cz - qz, d2 = dx * dx + dz * dz;
           if (d2 >= CAR_R * CAR_R) continue;
-          if (b.sign) {   // signs are light: at speed they get knocked over instead of stopping the car
+          if (b.sign) {
             const sp = Math.hypot(car.vx, car.vz);
             if (sp > 2.0) { knockSign(b, car.vx, car.vz, sp); car.vx *= 0.95; car.vz *= 0.95; shake = Math.max(shake, 0.2); continue; }
           }
@@ -1853,10 +1872,9 @@
      Rigid bodies (parked cars) and falling signs
   --------------------------------------------------------------- */
   const STATIC_B = { x: 0, z: 0, vx: 0, vz: 0, w: 0, invM: 0, invI: 0 };
-  const MU_SLIDE = 0.6 * 9.8;   // locked wheels sliding on asphalt
-  const ROT_FRIC = 3.0;         // rad/s^2 of spin removed by tyre scrub
+  const MU_SLIDE = 0.6 * 9.8;
+  const ROT_FRIC = 3.0;
 
-  // Impulse between two bodies at a contact point; n points from A to B. Returns the normal impulse.
   function applyImpulse(A, B, nx, nz, cpx, cpz, e, mu) {
     const rAx = cpx - A.x, rAz = cpz - A.z, rBx = cpx - B.x, rBz = cpz - B.z;
     const vAx = A.vx + A.w * rAz, vAz = A.vz - A.w * rAx;
@@ -1870,7 +1888,6 @@
     A.vx -= Jx * A.invM; A.vz -= Jz * A.invM; A.w -= (rAz * Jx - rAx * Jz) * A.invI;
     B.vx += Jx * B.invM; B.vz += Jz * B.invM; B.w += (rBz * Jx - rBx * Jz) * B.invI;
 
-    // friction along the contact surface (paint scraping, glancing blows)
     const tx = -nz, tz = nx;
     const wAx = A.vx + A.w * rAz, wAz = A.vz - A.w * rAx;
     const wBx = B.vx + B.w * rBz, wBz = B.vz - B.w * rBx;
@@ -2009,7 +2026,6 @@
   function updateSigns(dt) {
     for (let i = fallingSigns.length - 1; i >= 0; i--) {
       const sg = fallingSigns[i];
-      // a stiff rod pivoting about its foot: gravity speeds the fall as it tips over
       sg.omega += 4.9 * Math.sin(sg.theta) * dt;
       sg.theta += sg.omega * dt;
       if (sg.theta >= Math.PI / 2) {
@@ -2020,7 +2036,6 @@
       signAxis.set(sg.dz, 0, -sg.dx);
       sg.quat.setFromAxisAngle(signAxis, sg.theta);
       sg.y = SW + 0.05 * Math.sin(sg.theta);
-      // the plate twists on the way down so it ends up lying flat, face up
       const target = Math.atan2(-sg.dx, -sg.dz);
       const diff = ((target - sg.face + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
       const prog = sg.theta / (Math.PI / 2);
@@ -2043,7 +2058,7 @@
       bodiesVsBodies();
       for (const b of bodies) if (!b.sleep) bodyVsStatic(b);
     }
-    collide();   // in case a shoved car pinned the player against a wall
+    collide();
     for (const b of bodies) if (!b.sleep) placeBody(b, false);
     updateSigns(dt);
   }
@@ -2056,7 +2071,7 @@
     const steerIn = (held('left') ? 1 : 0) - (held('right') ? 1 : 0);
 
     const s = Math.min(1, Math.abs(vf0) / 26);
-    const maxSteer = (STEER_LOW - (STEER_LOW - STEER_HIGH) * s) * (hb ? 1.2 : 1);
+    const maxSteer = Math.min(0.42, (STEER_LOW - (STEER_LOW - STEER_HIGH) * s) * (hb ? 1.2 : 1));
     const target = steerIn * maxSteer;
     const rate = steerIn === 0 ? 5 : STEER_RATE;
     car.steer += clamp(target - car.steer, -rate * dt, rate * dt);
