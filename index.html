@@ -39,7 +39,6 @@
   body.is-paused .pad { opacity: 0; pointer-events: none; }
   .pad { transition: opacity .2s ease; }
 
-  /* ---------- pause overlay ---------- */
   .overlay {
     position: fixed; inset: 0; z-index: 6; box-sizing: border-box;
     display: flex; align-items: center; justify-content: center;
@@ -149,7 +148,6 @@
   .key.pressed { background: #ffb000; color: #14202c; border-color: #ffd36b; transform: scale(.94); }
   .key:focus-visible { box-shadow: 0 0 0 3px #fff; }
 
-  /* ---------- settings rows ---------- */
   .srow { display: flex; align-items: center; gap: 12px; margin: 13px 0; font-size: 15px; }
   .srow > label { flex: none; width: 112px; color: rgba(255, 255, 255, .85); }
   .srow output { flex: none; width: 34px; text-align: right; font-variant-numeric: tabular-nums; opacity: .8; font-size: 13px; }
@@ -168,7 +166,6 @@
   .pill.on::after { transform: translateX(24px); }
   .pill:focus-visible { box-shadow: 0 0 0 3px #fff; }
 
-  /* ---------- damage dots ---------- */
   #dmg { display: inline-flex; gap: 5px; align-items: center; padding-left: 12px; margin-left: 4px;
     border-left: 1px solid rgba(255, 255, 255, .25); }
   #dmg i { width: 9px; height: 9px; border-radius: 50%; background: rgba(255, 255, 255, .22);
@@ -255,7 +252,7 @@
 
 <div class="pad padL">
   <button class="key" data-k="left" type="button" aria-label="Steer left"><svg viewBox="0 0 24 24"><path d="M15 5l-8 7 8 7"/></svg></button>
-  <button class="key" data-k="hb" type="button" aria-label="Handbrake" title="Handbrake (Space)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M10 17V7h3.4a2.7 2.7 0 010 5.4H10"/></svg></button>
+  <button class="key" data-k="hb" type="button" aria-label="Handbrake" title="Handbrake (Space)"><svg viewBox="0 0 24 24"><g style="stroke-width:1.8"><circle cx="12" cy="12" r="5.6"/><path d="M10.4 14.8V9.2h2a1.6 1.6 0 010 3.2h-2"/><path d="M5.6 4.6A9.6 9.6 0 0 0 5.6 19.4M18.4 4.6A9.6 9.6 0 0 1 18.4 19.4"/></g></svg></button>
   <button class="key" data-k="right" type="button" aria-label="Steer right"><svg viewBox="0 0 24 24"><path d="M9 5l8 7-8 7"/></svg></button>
 </div>
 <div class="pad padR">
@@ -268,9 +265,6 @@
 (function () {
   "use strict";
 
-  /* ---------------------------------------------------------------
-     Helpers
-  --------------------------------------------------------------- */
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const rng = (function (a) {
     return function () {
@@ -292,9 +286,6 @@
   })();
   function saveSettings() { try { localStorage.setItem('citydrive.settings', JSON.stringify(settings)); } catch (_) {} }
 
-  /* ---------------------------------------------------------------
-     Renderer / scene / camera
-  --------------------------------------------------------------- */
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -324,9 +315,6 @@
   const _snapP = new THREE.Vector3();
   const _upVec = new THREE.Vector3(0, 1, 0);
 
-  /* ---------------------------------------------------------------
-     City layout constants
-  --------------------------------------------------------------- */
   const N = 4;
   const B = 40;
   const R = 14;
@@ -517,7 +505,7 @@
       }
       const w = lot - rr(0, 3), d = lot - rr(0, 3);
       const ox = rr(-(lot - w) / 2, (lot - w) / 2), oz = rr(-(lot - d) / 2, (lot - d) / 2);
-      const h = downtown ? rr(18, 36) : rr(6, 10 + tall * 22);
+      const h = downtown ? rr(7, 14) : rr(6, 10 + tall * 22);
       building(lx + ox, lz + oz, w, d, h, pick(TINTS), pick(TRIMS));
     }
   }
@@ -715,8 +703,11 @@
     }
   }
   function reshuffleParked() {
-    for (const b of bodies) { parkedGroup.remove(b.group); disposeCar(b.car); }
-    bodies.length = 0;
+    for (let i = bodies.length - 1; i >= 0; i--) {
+      const b = bodies[i];
+      if (b.traffic) continue;
+      parkedGroup.remove(b.group); disposeCar(b.car); bodies.splice(i, 1);
+    }
     for (let bi = 0; bi < N; bi++) for (let bj = 0; bj < N; bj++) parkedCars(bc(bi), bc(bj));
   }
 
@@ -742,10 +733,10 @@
     });
   })();
 
-  /* ---------------------------------------------------------------
-     Traffic lights: one signal head per approach, on the right-hand side
-     just before the junction. Traffic obeys exactly these two states.
-  --------------------------------------------------------------- */
+  const _sP = new THREE.Matrix4(), _sB = new THREE.Matrix4(), _sL = new THREE.Matrix4(), _sOut = new THREE.Matrix4();
+  const _sPos = new THREE.Vector3(), _sOne = new THREE.Vector3(1, 1, 1);
+  let lightMeshes = null;
+  const LIGHT_H = { red: 4.5, yellow: 4.2, green: 3.9 };
   const LIGHT_GREEN = 6, LIGHT_YELLOW = 1.5, LIGHT_RED = 0.5;
   let lightClock = 0;
   let xState = 'red', zState = 'green';
@@ -755,6 +746,19 @@
 
   function signalFor(h) { return Math.abs(Math.sin(h)) > Math.abs(Math.cos(h)) ? xState : zState; }
 
+  function writeLight(lg) {
+    const L = lightMeshes;
+    signLocal(lg, _sOut, 0, 0, 0, false);
+    L.poles.setMatrixAt(lg.idx, _sOut); L.housings.setMatrixAt(lg.idx, _sOut);
+    L.poles.instanceMatrix.needsUpdate = true; L.housings.instanceMatrix.needsUpdate = true;
+    for (const c of ['red', 'yellow', 'green']) {
+      signLocal(lg, _sOut, 0, LIGHT_H[c], -0.14, false);
+      const lamp = L.lamp[lg.axis][c], glow = L.glow[lg.axis][c];
+      lamp.setMatrixAt(lg.aidx, _sOut); glow.setMatrixAt(lg.aidx, _sOut);
+      lamp.instanceMatrix.needsUpdate = true; glow.instanceMatrix.needsUpdate = true;
+    }
+  }
+
   function createTrafficLights() {
     const spots = [];
     const stopOffset = R / 2 + 1.8;
@@ -763,14 +767,12 @@
     for (let i = 0; i <= N; i++) {
       for (let j = 0; j <= N; j++) {
         const ix = rc(i), iz = rc(j);
-
         const defs = [
-          { axis: 'z', hx: 0, hz: 1,  rot: 0,           x: ix - rightSide, z: iz - stopOffset },
-          { axis: 'z', hx: 0, hz: -1, rot: Math.PI,     x: ix + rightSide, z: iz + stopOffset },
-          { axis: 'x', hx: 1, hz: 0,  rot: Math.PI / 2, x: ix - stopOffset, z: iz + rightSide },
-          { axis: 'x', hx: -1, hz: 0, rot: -Math.PI/2,  x: ix + stopOffset, z: iz - rightSide }
+          { axis: 'z', rot: 0,            x: ix - rightSide, z: iz - stopOffset },
+          { axis: 'z', rot: Math.PI,      x: ix + rightSide, z: iz + stopOffset },
+          { axis: 'x', rot: Math.PI / 2,  x: ix - stopOffset, z: iz + rightSide },
+          { axis: 'x', rot: -Math.PI / 2, x: ix + stopOffset, z: iz - rightSide }
         ];
-
         for (const s of defs) {
           if (groundHeight(s.x, s.z) === 0) continue;
           spots.push(s);
@@ -778,56 +780,38 @@
       }
     }
 
-    const dummy = new THREE.Object3D();
     const poles = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.08, 0.1, 4.5, 8).translate(0, 2.25, 0), lam(0x2a2d33), spots.length);
     const housings = new THREE.InstancedMesh(new THREE.BoxGeometry(0.35, 1.0, 0.25).translate(0, 4.2, 0), lam(0x1a1c20), spots.length);
-    
-    spots.forEach((s, k) => {
-      dummy.position.set(s.x, SW, s.z); 
-      dummy.rotation.set(0, 0, 0); 
-      dummy.updateMatrix(); 
-      poles.setMatrixAt(k, dummy.matrix);
-      dummy.rotation.set(0, s.rot, 0); 
-      dummy.updateMatrix(); 
-      housings.setMatrixAt(k, dummy.matrix);
-
-      addCollider(s.x, s.z, 0.4, 0.4);
-    });
-    
+    lightMeshes = { poles, housings, lamp: { x: {}, z: {} }, glow: { x: {}, z: {} } };
     [poles, housings].forEach(m => { m.castShadow = true; m.frustumCulled = false; scene.add(m); });
 
     const lampGeo = new THREE.SphereGeometry(0.12, 8, 8), glowGeo = new THREE.SphereGeometry(0.2, 8, 8);
-    const heights = { red: 4.5, yellow: 4.2, green: 3.9 };
-
     for (const axis of ['x', 'z']) {
-      const mine = spots.filter(s => s.axis === axis);
-      if (mine.length === 0) continue;
-
+      const n = spots.filter(s => s.axis === axis).length;
+      if (n === 0) continue;
       for (const c of ['red', 'yellow', 'green']) {
         lampMats[axis][c] = new THREE.MeshBasicMaterial({ color: LIGHT_COLORS[c][1] });
         glowMats[axis][c] = new THREE.MeshBasicMaterial({ color: LIGHT_COLORS[c][0], transparent: true, opacity: 0, depthWrite: false });
-        const lamp = new THREE.InstancedMesh(lampGeo, lampMats[axis][c], mine.length);
-        const glow = new THREE.InstancedMesh(glowGeo, glowMats[axis][c], mine.length);
-
-        mine.forEach((s, k) => {
-          const offsetDist = 0.14;
-          const lx = s.x - Math.sin(s.rot) * offsetDist;
-          const lz = s.z - Math.cos(s.rot) * offsetDist;
-
-          dummy.position.set(lx, SW + heights[c], lz);
-          dummy.rotation.set(0, s.rot, 0);
-          dummy.updateMatrix();
-
-          lamp.setMatrixAt(k, dummy.matrix);
-          glow.setMatrixAt(k, dummy.matrix);
-        });
-
-        lamp.frustumCulled = false; 
-        glow.frustumCulled = false;
-        scene.add(lamp); 
-        scene.add(glow);
+        const lamp = new THREE.InstancedMesh(lampGeo, lampMats[axis][c], n);
+        const glow = new THREE.InstancedMesh(glowGeo, glowMats[axis][c], n);
+        lamp.frustumCulled = false; glow.frustumCulled = false;
+        scene.add(lamp); scene.add(glow);
+        lightMeshes.lamp[axis][c] = lamp; lightMeshes.glow[axis][c] = glow;
       }
     }
+
+    const counts = { x: 0, z: 0 };
+    spots.forEach((s, k) => {
+      const col = addCollider(s.x, s.z, 0.4, 0.4);
+      const lg = {
+        type: 'light', isLight: true, axis: s.axis, idx: k, aidx: counts[s.axis]++, gk: 3.3,
+        x: s.x, y: SW, z: s.z, yaw: s.rot, face: s.rot, quat: new THREE.Quaternion(),
+        state: 'up', theta: 0, omega: 0, dx: 0, dz: 0, col
+      };
+      col.sign = lg; col.off = false;
+      signs.push(lg);
+      writeLight(lg);
+    });
   }
 
   function updateTrafficLights(dt) {
@@ -849,18 +833,9 @@
   createTrafficLights();
   updateTrafficLights(0);
 
-  /* ---------------------------------------------------------------
-     Traffic signs. Every junction already has signals, so there are no
-     stop / yield signs. Signs here are the ones that go with signalled
-     city streets: speed limit, signal ahead, pedestrian crossing, parking.
-     They stand on the right-hand pavement and face approaching drivers.
-     Rendered as instances, so a knocked-over sign just updates its matrix.
-  --------------------------------------------------------------- */
   const SIGN_POLE_GEO = new THREE.CylinderGeometry(0.05, 0.06, 3.1, 8);
   const signMeshes = {};
   let signPoleMesh = null;
-  const _sP = new THREE.Matrix4(), _sB = new THREE.Matrix4(), _sL = new THREE.Matrix4(), _sOut = new THREE.Matrix4();
-  const _sPos = new THREE.Vector3(), _sOne = new THREE.Vector3(1, 1, 1);
 
   function signLocal(sg, m, lx, ly, lz, flip) {
     _sP.compose(_sPos.set(sg.x, sg.y, sg.z), sg.quat, _sOne);
@@ -868,6 +843,7 @@
     _sL.makeRotationY(flip ? Math.PI : 0); _sL.setPosition(lx, ly, lz);
     m.copy(_sP).multiply(_sB).multiply(_sL);
   }
+  function writeAnySign(sg) { if (sg.isLight) writeLight(sg); else writeSign(sg); }
   function writeSign(sg) {
     const mm = signMeshes[sg.type];
     signLocal(sg, _sOut, 0, 1.55, 0, false); signPoleMesh.setMatrixAt(sg.pole, _sOut);
@@ -981,16 +957,20 @@
   buildTrees();
 
   let player = null;
-  const MAX_MARKS = 1400;
+  const MAX_MARKS = 4000;
   const markGeo = new THREE.PlaneGeometry(0.3, 1).rotateX(-Math.PI / 2);
-  const markMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.32, depthWrite: false });
+  const markMat = new THREE.MeshBasicMaterial({
+    color: 0x000000, transparent: true, opacity: 0.32, depthWrite: false,
+    stencilWrite: true, stencilFunc: THREE.NotEqualStencilFunc, stencilRef: 1, stencilZPass: THREE.ReplaceStencilOp
+  });
   const marks = new THREE.InstancedMesh(markGeo, markMat, MAX_MARKS);
   const mDummy = new THREE.Object3D();
   mDummy.scale.setScalar(0); mDummy.updateMatrix();
   for (let i = 0; i < MAX_MARKS; i++) marks.setMatrixAt(i, mDummy.matrix);
   marks.frustumCulled = false; marks.renderOrder = 2;
   scene.add(marks);
-  let markIdx = 0, lastMarkX = 1e9, lastMarkZ = 1e9;
+  let markIdx = 0;
+  let axleTrail = null;
   let wheelTrail = [null, null];
   function dropMark(x1, z1, x2, z2) {
     const dx = x2 - x1, dz = z2 - z1;
@@ -1294,13 +1274,14 @@
     });
   });
 
+  const LANE = 2.6;
   function randomRoadPoint() {
     const vertical = Math.random() < 0.5;
     const i = Math.floor(Math.random() * (N + 1));
     const t = ur(-HALF + 14, HALF - 14);
     const dir = Math.random() < 0.5 ? 1 : -1;
-    if (vertical) return { x: rc(i), z: t, h: dir > 0 ? 0 : Math.PI };
-    return { x: t, z: rc(i), h: dir > 0 ? Math.PI / 2 : -Math.PI / 2 };
+    if (vertical) return { x: rc(i) + (dir > 0 ? -LANE : LANE), z: t, h: dir > 0 ? 0 : Math.PI };
+    return { x: t, z: rc(i) + (dir > 0 ? LANE : -LANE), h: dir > 0 ? Math.PI / 2 : -Math.PI / 2 };
   }
 
   const spawn0 = randomRoadPoint();
@@ -1313,6 +1294,7 @@
   let WHEELBASE = 2.7, VMAX = 33, ENGINE = 15, BRAKE = 30, GRIP = 7.0, CAR_R = 0.95;
   let MAXLAT = 24, STEER_LOW = 0.55, STEER_HIGH = 0.11, STEER_RATE = 4.2, STAB = 6, CAR_OFF = 1.25;
   const VREV = 9;
+  const HB_DECEL = 11;
   const PB = { x: 0, z: 0, vx: 0, vz: 0, w: 0, invM: 1 / 1350, invI: 1 / 2400 };
 
   const carColors = { coupe: 0xe8322b, sedan: 0x2f6fe0, hatch: 0xf2c230 };
@@ -1350,7 +1332,6 @@
   const TRAFFIC_N = 10;
   const TURN_RHO = 7;
   const TURN_START = 7.4;
-  const LANE = 2.6;
   const traffic = [];
   const trafficColors = [0x8a9099, 0x3f5b7a, 0xb8b4aa, 0x7a3b3b, 0x2f3b36,
                          0xc9b27a, 0x5a6f8c, 0xe2e0da, 0x4a7a5c, 0x9c6f8a];
@@ -1396,6 +1377,7 @@
         nextKey: null, wantTurn: false, turnTo: null, signal: 0,
         isTurning: false, targetHeading: 0,
         arc: null, braking: false, steerSmooth: 0, waitTime: 0, passOffset: 0, yielding: false,
+        body: null, recover: false, recH: 0, homeH: 0, recSteer: 0, knockT: 0, gy: 0,
         waitingToTurn: false 
       });
       return;
@@ -1534,13 +1516,103 @@
     return null;
   }
 
+  function removeBody(b) { const i = bodies.indexOf(b); if (i >= 0) bodies.splice(i, 1); }
+
+  function knockTraffic(t) {
+    if (t.body) return;
+    const m = t.mesh.model, o = m.len / 2 - 0.9;
+    const b = {
+      car: t.mesh, group: t.mesh.group, key: null, x: t.x, z: t.z, h: t.h, y: t.gy || 0,
+      vx: Math.sin(t.h) * t.speed, vz: Math.cos(t.h) * t.speed, w: 0, sleep: false, traffic: t,
+      m: m.mass, invM: 1 / m.mass, invI: 12 / (m.mass * (m.len * m.len + m.w * m.w)),
+      r: m.w / 2, offs: [o, 0, -o], reach: m.len / 2 + 1
+    };
+    if (!t.recover) t.homeH = Math.round((t.isTurning ? t.targetHeading : t.h) / (Math.PI / 2)) * (Math.PI / 2);
+    t.body = b; t.knockT = 0; t.recover = false;
+    t.isTurning = false; t.bz = null; t.wantTurn = false; t.waitingToTurn = false; t.turnTo = null; t.signal = 0;
+    t.nextKey = null; t.yielding = false; t.passOffset = 0; t.waitTime = 0; t.speed = 0; t.braking = false;
+    bodies.push(b);
+  }
+
+  function releaseTraffic(t) {
+    const b = t.body;
+    if (!b) return;
+    removeBody(b);
+    t.body = null; t.x = b.x; t.z = b.z; t.h = wrapAngle(b.h);
+    t.recH = Math.abs(wrapAngle(t.homeH - t.h)) <= 1.75 ? t.homeH : Math.round(t.h / (Math.PI / 2)) * (Math.PI / 2);
+    t.recSteer = 0;
+    t.speed = 0; t.recover = true; t.knockT = 0; t.nextKey = null; t.yielding = false; t.waitTime = 0;
+  }
+
+  function circlesTouch(ax0, az0, afx, afz, aOffs, ar, bx0, bz0, bfx, bfz, bOffs, br) {
+    const rs = ar + br;
+    for (const ao of aOffs) for (const bo of bOffs) {
+      const dx = (bx0 + bfx * bo) - (ax0 + afx * ao), dz = (bz0 + bfz * bo) - (az0 + afz * ao);
+      if (dx * dx + dz * dz < rs * rs) return true;
+    }
+    return false;
+  }
+
+  function knockTouchedTraffic() {
+    if (wrecked) return;
+    const pfx = Math.sin(car.h), pfz = Math.cos(car.h), pOffs = [CAR_OFF, 0, -CAR_OFF];
+    for (const t of traffic) {
+      if (t.body) continue;
+      const m = t.mesh.model, o = m.len / 2 - 0.9;
+      const dx = t.x - car.x, dz = t.z - car.z, lim = CAR_OFF + o + CAR_R + m.w / 2;
+      if (dx * dx + dz * dz > lim * lim) continue;
+      if (circlesTouch(car.x, car.z, pfx, pfz, pOffs, CAR_R, t.x, t.z, Math.sin(t.h), Math.cos(t.h), [o, 0, -o], m.w / 2)) knockTraffic(t);
+    }
+  }
+
+  function trafficVsBodies() {
+    for (const t of traffic) {
+      if (t.body) continue;
+      const m = t.mesh.model, o = m.len / 2 - 0.9, tfx = Math.sin(t.h), tfz = Math.cos(t.h);
+      let hit = false;
+      for (const b of bodies) {
+        if (b.sleep) continue;
+        const dx = b.x - t.x, dz = b.z - t.z, lim = m.len / 2 + 1 + b.reach;
+        if (dx * dx + dz * dz > lim * lim) continue;
+        if (circlesTouch(t.x, t.z, tfx, tfz, [o, 0, -o], m.w / 2, b.x, b.z, Math.sin(b.h), Math.cos(b.h), b.offs, b.r)) { hit = true; break; }
+      }
+      if (hit) knockTraffic(t);
+    }
+  }
+
   function updateTraffic(dt) {
     const blink = (performance.now() % 900) < 450;
     for (let i = traffic.length - 1; i >= 0; i--) {
       const t = traffic[i];
       if (Math.hypot(t.x - car.x, t.z - car.z) > 240) {
+        if (t.body) removeBody(t.body);
         scene.remove(t.mesh.group); disposeCar(t.mesh); traffic.splice(i, 1); spawnTraffic(false);
         continue;
+      }
+
+      if (t.body) {
+        const b = t.body;
+        t.x = b.x; t.z = b.z; t.h = b.h; t.speed = 0; t.braking = false; t.signal = 0;
+        const along = b.vx * Math.sin(b.h) + b.vz * Math.cos(b.h);
+        t.spin += (along / t.mesh.model.wheelR) * dt;
+        t.mesh.wheels.forEach(w => { w.rotation.x = t.spin; });
+        t.mesh.tailMat.color.setHex(0x8a1212);
+        t.mesh.indMat.color.setHex(0x6b4a12);
+        if (b.sleep) { t.knockT += dt; if (t.knockT > 0.6) releaseTraffic(t); }
+        else t.knockT = 0;
+        continue;
+      }
+      if (t.recover) {
+        const hc = t.recH;
+        const vert = Math.abs(Math.cos(hc)) >= Math.abs(Math.sin(hc));
+        const sgn = vert ? -Math.cos(hc) : Math.sin(hc);
+        const center = vert ? rc(nearRc(t.x)) : rc(nearRc(t.z));
+        const d = ((vert ? t.x : t.z) - center) * sgn - (t.lat + t.passOffset);
+        const hDes = hc + clamp(Math.atan2(0.7 * d, t.speed + 2.5), -0.75, 0.75);
+        const steer = clamp(wrapAngle(hDes - t.h) * 2.5, -0.5, 0.5);
+        t.recSteer = steer;
+        t.h += (t.speed / 2.7) * Math.tan(steer) * dt;
+        if (Math.abs(d) < 0.15 && Math.abs(wrapAngle(hc - t.h)) < 0.05) { t.h = hc; t.recover = false; t.recSteer = 0; }
       }
 
       const fx = Math.sin(t.h), fz = Math.cos(t.h);
@@ -1557,7 +1629,7 @@
           }
           if (ni.f > 2 && intersectionOccupied(t, ni)) t.yielding = true;
           else if (ni.f > 8) t.yielding = false;
-          if (t.wantTurn && ni.f <= TURN_START) {
+          if (t.wantTurn && !t.recover && ni.f <= TURN_START) {
             if (!intersectionOccupied(t, ni)) startArc(t, ni);
             else t.waitingToTurn = true;
           }
@@ -1580,7 +1652,7 @@
         t.z += fz * t.speed * dt;
         const ii = nearRc(t.x), ij = nearRc(t.z);
         const inBox = Math.abs(t.z - rc(ij)) < R * 0.55 && Math.abs(t.x - rc(ii)) < R * 0.55;
-        if (!inBox) {
+        if (!inBox && !t.recover) {
           let center, cur;
           if (Math.abs(fz) >= Math.abs(fx)) { center = rc(ii); cur = (t.x - center) * rx; }
           else { center = rc(ij); cur = (t.z - center) * rz; }
@@ -1642,6 +1714,7 @@
       }
       if (!t.isTurning && ni0 && t.wantTurn && ni0.f < 24) target = Math.min(target, 5.4);
       target = Math.min(target, lightCap);
+      if (t.recover) target = Math.min(target, 3.5);
       if (lightCap < t.speed - 0.3) t.braking = true;
       if (ob && !ob.oncoming && ob.d2 < 30 && !t.yielding) {
         const ahead = ob.body ? null : carAhead(t, ob);
@@ -1671,47 +1744,13 @@
         }
       }
 
-      if (!wrecked) {
-        const cm = CAR_MODELS[playerKey], tm = t.mesh.model;
-        const fx = Math.sin(car.h), fz = Math.cos(car.h);
-        const rx = -Math.cos(car.h), rz = Math.sin(car.h);
-        const tfx = Math.sin(t.h), tfz = Math.cos(t.h);
-        const trx = -Math.cos(t.h), trz = Math.sin(t.h);
-        const dx = car.x - t.x, dz = car.z - t.z;
-        const pHalfL = cm.len / 2, pHalfW = cm.w / 2;
-        const tHalfL = tm.len / 2, tHalfW = tm.w / 2;
-        const axes = [[fx, fz], [rx, rz], [tfx, tfz], [trx, trz]];
-        let minO = Infinity, minAx = null, colliding = true;
-        for (const [ax, az] of axes) {
-          const pExt = pHalfL * Math.abs(fx * ax + fz * az) + pHalfW * Math.abs(rx * ax + rz * az);
-          const tExt = tHalfL * Math.abs(tfx * ax + tfz * az) + tHalfW * Math.abs(trx * ax + trz * az);
-          const o = pExt + tExt - Math.abs(dx * ax + dz * az);
-          if (o <= 0) { colliding = false; break; }
-          if (o < minO) { minO = o; minAx = [ax, az]; }
-        }
-        if (colliding) {
-          const [ax, az] = minAx;
-          const side = (dx * ax + dz * az) >= 0 ? 1 : -1;
-          const nx = ax * side, nz = az * side;
-          car.x += nx * minO; car.z += nz * minO;
-          const vn = car.vx * nx + car.vz * nz;
-          if (vn < 0) {
-            const j = -0.8 * vn;
-            car.vx += nx * j; car.vz += nz * j;
-            t.speed *= 0.7;
-            shake = Math.max(shake, Math.min(1, j / 16));
-            sfx.impact(j);
-            registerCrash(j);
-          }
-        }
-      }
-
       const g = t.mesh.group;
-      g.position.set(t.x, 0, t.z);
+      t.gy += (groundHeight(t.x, t.z) - t.gy) * Math.min(1, dt * 12);
+      g.position.set(t.x, t.gy, t.z);
       g.rotation.y = t.h;
       t.spin += (t.speed / t.mesh.model.wheelR) * dt;
       t.mesh.wheels.forEach(w => { w.rotation.x = t.spin; });
-      const steerTarget = t.isTurning ? clamp(wrapAngle(t.targetHeading - t.h) * 0.9, -0.45, 0.45) : 0;
+      const steerTarget = t.isTurning ? clamp(wrapAngle(t.targetHeading - t.h) * 0.9, -0.45, 0.45) : (t.recover ? t.recSteer : 0);
       t.steerSmooth += clamp(steerTarget - t.steerSmooth, -3 * dt, 3 * dt);
       t.mesh.steerPivots.forEach(p => { p.rotation.y = t.steerSmooth; });
       t.mesh.tailMat.color.setHex(t.braking ? 0xff2a2a : 0x8a1212);
@@ -1722,7 +1761,7 @@
   for (let k = 0; k < TRAFFIC_N; k++) spawnTraffic(true);
 
   function reshuffleTraffic() {
-    for (const t of traffic) { scene.remove(t.mesh.group); disposeCar(t.mesh); }
+    for (const t of traffic) { if (t.body) removeBody(t.body); scene.remove(t.mesh.group); disposeCar(t.mesh); }
     traffic.length = 0;
     for (let k = 0; k < TRAFFIC_N; k++) spawnTraffic(true);
   }
@@ -1868,9 +1907,6 @@
     }
   }
 
-  /* ---------------------------------------------------------------
-     Rigid bodies (parked cars) and falling signs
-  --------------------------------------------------------------- */
   const STATIC_B = { x: 0, z: 0, vx: 0, vz: 0, w: 0, invM: 0, invI: 0 };
   const MU_SLIDE = 0.6 * 9.8;
   const ROT_FRIC = 3.0;
@@ -1951,6 +1987,7 @@
   }
 
   function playerVsBodies() {
+    knockTouchedTraffic();
     const pfx = Math.sin(car.h), pfz = Math.cos(car.h);
     const preach = CAR_OFF + CAR_R + 1;
     for (const b of bodies) {
@@ -2011,7 +2048,6 @@
     }
   }
 
-  /* ---------- signs falling over ---------- */
   const signAxis = new THREE.Vector3();
   function knockSign(col, vx, vz, sp) {
     const sg = col.sign;
@@ -2026,7 +2062,7 @@
   function updateSigns(dt) {
     for (let i = fallingSigns.length - 1; i >= 0; i--) {
       const sg = fallingSigns[i];
-      sg.omega += 4.9 * Math.sin(sg.theta) * dt;
+      sg.omega += (sg.gk || 4.9) * Math.sin(sg.theta) * dt;
       sg.theta += sg.omega * dt;
       if (sg.theta >= Math.PI / 2) {
         sg.theta = Math.PI / 2;
@@ -2036,24 +2072,25 @@
       signAxis.set(sg.dz, 0, -sg.dx);
       sg.quat.setFromAxisAngle(signAxis, sg.theta);
       sg.y = SW + 0.05 * Math.sin(sg.theta);
-      const target = Math.atan2(-sg.dx, -sg.dz);
+      const target = Math.atan2(-sg.dx, -sg.dz) + (sg.isLight ? Math.PI : 0);
       const diff = ((target - sg.face + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
       const prog = sg.theta / (Math.PI / 2);
       sg.yaw = sg.face + diff * prog * prog;
-      writeSign(sg);
+      writeAnySign(sg);
     }
   }
   function resetSigns() {
     fallingSigns.length = 0;
     for (const sg of signs) {
       sg.state = 'up'; sg.theta = 0; sg.omega = 0; sg.y = SW; sg.yaw = sg.face; sg.quat.identity(); sg.col.off = false;
-      writeSign(sg);
+      writeAnySign(sg);
     }
   }
 
   function stepWorld(dt) {
     for (const b of bodies) integrateBody(b, dt);
     for (let it = 0; it < 2; it++) {
+      trafficVsBodies();
       playerVsBodies();
       bodiesVsBodies();
       for (const b of bodies) if (!b.sleep) bodyVsStatic(b);
@@ -2089,9 +2126,13 @@
       a = -Math.sign(vf0) * Math.min(Math.abs(vf0) / dt, c);
     }
     if (car.y > 0.1) a -= vf0 * 0.9;
-    if (hb) a -= Math.sign(vf0) * Math.min(Math.abs(vf0) / dt, 9.5);
+    if (hb) {
+      if (!braking && up !== down) a *= 0.2;
+      a -= Math.sign(vf0) * Math.min(Math.abs(vf0) / dt, HB_DECEL);
+    }
     let vf1 = vf0 + a * dt;
     if (braking && Math.sign(vf1) !== Math.sign(vf0)) vf1 = 0;
+    if (hb && Math.abs(vf1) < 0.6) vf1 = 0;
     car.vx += fx * (vf1 - vf0); car.vz += fz * (vf1 - vf0);
     car.accelLong += ((vf1 - vf0) / dt - car.accelLong) * Math.min(1, dt * 10);
     car.braking = braking; car.reversing = reversing;
@@ -2114,6 +2155,7 @@
     if (hb) grip = 0.9;
     else if (braking && Math.abs(vf2) > 8 && Math.abs(car.steer) > 0.05) grip = 3.0;
     vl2 *= Math.exp(-grip * dt);
+    if (hb) vl2 -= Math.sign(vl2) * Math.min(Math.abs(vl2), 3.5 * dt);
     car.vx = fx * vf2 + rx * vl2; car.vz = fz * vf2 + rz * vl2;
     car.vf = vf2; car.vl = vl2;
     car.hb = hb;
@@ -2272,8 +2314,9 @@
     const z = new THREE.Object3D(); z.scale.setScalar(0); z.updateMatrix();
     for (let i = 0; i < MAX_MARKS; i++) marks.setMatrixAt(i, z.matrix);
     marks.instanceMatrix.needsUpdate = true;
-    markIdx = 0; lastMarkX = 1e9; lastMarkZ = 1e9;
+    markIdx = 0;
     wheelTrail = [null, null];
+    axleTrail = null;
     camTarget.set(car.x, 0, car.z);
     player.group.position.set(car.x, 0, car.z);
     player.group.rotation.y = car.h;
@@ -2342,21 +2385,31 @@
 
     const slipping = car.hb && Math.abs(car.vf) > 3;
     if (slipping && car.y < 0.1) {
-      const dx = car.x - lastMarkX, dz = car.z - lastMarkZ;
-      if (dx * dx + dz * dz > 0.04) {
-        const fx = Math.sin(car.h), fz = Math.cos(car.h), rx = -Math.cos(car.h), rz = Math.sin(car.h);
-        const cm = CAR_MODELS[playerKey], wx = cm.wheelX;
-        [-wx, wx].forEach((side, k) => {
-          const nx = car.x - fx * cm.wheelZ + rx * side;
-          const nz = car.z - fz * cm.wheelZ + rz * side;
-          const p = wheelTrail[k];
-          if (p && Math.hypot(nx - p.x, nz - p.z) < 3) dropMark(p.x, p.z, nx, nz);
-          wheelTrail[k] = { x: nx, z: nz };
-        });
-        lastMarkX = car.x; lastMarkZ = car.z;
+      const cm = CAR_MODELS[playerKey], wx = cm.wheelX;
+      const ax = car.x - Math.sin(car.h) * cm.wheelZ, az = car.z - Math.cos(car.h) * cm.wheelZ;
+      if (!axleTrail) {
+        const vl = Math.hypot(car.vx, car.vz) || 1;
+        const tx = car.vx / vl, tz = car.vz / vl;
+        axleTrail = { x: ax, z: az, tx, tz };
+        [-wx, wx].forEach((side, k) => { wheelTrail[k] = { x: ax - tz * side, z: az + tx * side }; });
+      } else {
+        const dx = ax - axleTrail.x, dz = az - axleTrail.z, d = Math.hypot(dx, dz);
+        if (d > 0.18) {
+          let tx = axleTrail.tx * 0.4 + (dx / d) * 0.6, tz = axleTrail.tz * 0.4 + (dz / d) * 0.6;
+          const tl = Math.hypot(tx, tz);
+          if (tl < 0.25) { tx = dx / d; tz = dz / d; } else { tx /= tl; tz /= tl; }
+          [-wx, wx].forEach((side, k) => {
+            const nx = ax - tz * side, nz = az + tx * side;
+            const pw = wheelTrail[k];
+            if (pw) dropMark(pw.x, pw.z, nx, nz);
+            wheelTrail[k] = { x: nx, z: nz };
+          });
+          axleTrail = { x: ax, z: az, tx, tz };
+        }
       }
     } else {
       wheelTrail[0] = wheelTrail[1] = null;
+      axleTrail = null;
     }
 
     const speed = Math.hypot(car.vx, car.vz);
