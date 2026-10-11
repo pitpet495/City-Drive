@@ -127,6 +127,15 @@
   .padL { left: max(18px, env(safe-area-inset-left)); flex-direction: row; gap: 10px; }
   .padR { right: max(18px, env(safe-area-inset-right)); flex-direction: row; align-items: center; gap: 20px; }
   .col { display: flex; flex-direction: column; gap: 14px; }
+  .wheel {
+    --w: clamp(150px, 38vmin, 230px);
+    width: var(--w); height: var(--w); cursor: grab; touch-action: none; outline: none;
+    filter: drop-shadow(0 2px 6px rgba(0, 0, 0, .45));
+  }
+  .wheel svg { width: 100%; height: 100%; display: block; will-change: transform; pointer-events: none; }
+  .wheel.drag { cursor: grabbing; }
+  .padL.arrows .wheel { display: none; }
+  .padL:not(.arrows) .key { display: none; }
 
   .key {
     width: var(--k); height: var(--k); padding: 0; border-radius: 22px; cursor: pointer;
@@ -149,6 +158,10 @@
     background: #ffb000; border: 2px solid #14202c; box-shadow: 0 0 0 2px #ffd36b; cursor: pointer; }
   input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: #ffb000; border: 2px solid #14202c; cursor: pointer; }
   input[type="range"]:focus-visible { box-shadow: 0 0 0 3px #fff; }
+  .seg { margin-left: auto; display: flex; border-radius: 14px; overflow: hidden; border: 1.5px solid rgba(255, 255, 255, .3); }
+  .seg button { padding: 0 14px; height: 28px; border: 0; background: rgba(255, 255, 255, .12); color: #fff; font: inherit; font-size: 13px; cursor: pointer; outline: none; }
+  .seg button.on { background: #ffb000; color: #14202c; font-weight: 600; }
+  .seg button:focus-visible { box-shadow: inset 0 0 0 2px #fff; }
   .pill { margin-left: auto; flex: none; width: 52px; height: 28px; border-radius: 14px; cursor: pointer;
     border: 1.5px solid rgba(255, 255, 255, .3); background: rgba(255, 255, 255, .12); position: relative;
     transition: background .15s ease; outline: none; padding: 0; }
@@ -214,6 +227,7 @@
       <div class="srow"><label for="volSfx">Sound effects</label><input type="range" id="volSfx" min="0" max="100" step="1" value="100"><output id="volSfxV">100</output></div>
       <div class="srow"><label>Shadows</label><button class="pill on" id="pillShadows" type="button" role="switch" aria-checked="true" aria-label="Shadows"></button></div>
       <div class="srow"><label>Skid marks</label><button class="pill on" id="pillMarks" type="button" role="switch" aria-checked="true" aria-label="Skid marks"></button></div>
+      <div class="srow"><label>Steering</label><div class="seg" role="group" aria-label="Steering controls"><button type="button" id="segWheel">Wheel</button><button type="button" id="segArrows">Arrows</button></div></div>
       <div class="srow"><label>Camera shake</label><button class="pill on" id="pillShake" type="button" role="switch" aria-checked="true" aria-label="Camera shake"></button></div>
     </section>
   </div>
@@ -241,7 +255,18 @@
   </button>
 </div>
 
-<div class="pad padL">
+<div class="pad padL" id="padL">
+  <div class="wheel" id="wheel" aria-label="Steering wheel" role="slider">
+    <svg id="wheelSvg" viewBox="0 0 200 200">
+      <circle cx="100" cy="100" r="96" fill="rgba(14,26,40,.8)" stroke="rgba(255,255,255,.85)" stroke-width="2.4"/>
+      <circle cx="100" cy="100" r="80" fill="rgba(34,48,66,.9)" stroke="rgba(255,255,255,.8)" stroke-width="2"/>
+      <path d="M30,102 Q60,66 100,66 Q140,66 170,102" fill="none" stroke="rgba(255,255,255,.7)" stroke-width="2"/>
+      <path d="M21,120 Q45,111 65,122 Q66,141 50,156 Q31,152 21,120 Z" fill="rgba(0,0,0,.45)" stroke="rgba(255,255,255,.8)" stroke-width="2"/>
+      <path d="M179,120 Q155,111 135,122 Q134,141 150,156 Q169,152 179,120 Z" fill="rgba(0,0,0,.45)" stroke="rgba(255,255,255,.8)" stroke-width="2"/>
+      <path d="M58,163 Q100,150 142,163 Q130,179 100,181 Q70,179 58,163 Z" fill="rgba(0,0,0,.45)" stroke="rgba(255,255,255,.8)" stroke-width="2"/>
+      <rect x="94" y="6" width="12" height="14" rx="3" fill="#ffb000"/>
+    </svg>
+  </div>
   <button class="key" data-k="left" type="button" aria-label="Steer left"><svg viewBox="0 0 24 24"><path d="M15 5l-8 7 8 7"/></svg></button>
   <button class="key" data-k="right" type="button" aria-label="Steer right"><svg viewBox="0 0 24 24"><path d="M9 5l8 7-8 7"/></svg></button>
 </div>
@@ -273,7 +298,7 @@
   const wrapAngle = a => Math.atan2(Math.sin(a), Math.cos(a));
 
   const settings = (() => {
-    const def = { music: 100, sfx: 100, shadows: true, marks: true, shake: true, musicOn: true, sfxOn: true, car: 'coupe', colors: {} };
+    const def = { music: 100, sfx: 100, shadows: true, marks: true, shake: true, wheel: true, musicOn: true, sfxOn: true, car: 'coupe', colors: {} };
     try { return Object.assign(def, JSON.parse(localStorage.getItem('citydrive.settings') || '{}')); }
     catch (_) { return def; }
   })();
@@ -1012,6 +1037,57 @@
   window.addEventListener('keyup', e => { const k = keyMap[e.code]; if (k) { e.preventDefault(); keysKB[k] = false; } });
   window.addEventListener('blur', () => { for (const k in keysKB) { keysKB[k] = false; keysPtr[k] = false; } });
   const held = k => keysKB[k] || keysPtr[k];
+
+  const WHEEL_MAX = 90, WHEEL_LOCK = 40;
+  const wheelEl = document.getElementById('wheel'), wheelSvg = document.getElementById('wheelSvg'), padLEl = document.getElementById('padL');
+  const wheelSt = { drag: false, id: -1, last: 0, raw: 0, angle: 0, disp: 0 };
+  const wheelPtrAngle = e => {
+    const r = wheelEl.getBoundingClientRect();
+    return Math.atan2(e.clientY - (r.top + r.height / 2), e.clientX - (r.left + r.width / 2)) * 180 / Math.PI;
+  };
+  const wrapDeg = a => ((a + 540) % 360) - 180;
+  wheelEl.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    wheelSt.drag = true; wheelSt.id = e.pointerId;
+    wheelSt.last = wheelPtrAngle(e); wheelSt.raw = wheelSt.disp;
+    wheelEl.classList.add('drag');
+    try { wheelEl.setPointerCapture(e.pointerId); } catch (_) {}
+  });
+  wheelEl.addEventListener('pointermove', e => {
+    if (!wheelSt.drag || e.pointerId !== wheelSt.id) return;
+    const r = wheelEl.getBoundingClientRect();
+    const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+    if (Math.hypot(dx, dy) < r.width * 0.12) return;
+    const cur = Math.atan2(dy, dx) * 180 / Math.PI;
+    wheelSt.raw += wrapDeg(cur - wheelSt.last);
+    wheelSt.last = cur;
+    wheelSt.angle = clamp(wheelSt.raw, -WHEEL_MAX, WHEEL_MAX);
+    wheelSt.raw = wheelSt.angle;
+  });
+  const wheelRelease = e => {
+    if (e && e.pointerId !== wheelSt.id) return;
+    wheelSt.drag = false; wheelSt.angle = 0; wheelEl.classList.remove('drag');
+  };
+  wheelEl.addEventListener('pointerup', wheelRelease);
+  wheelEl.addEventListener('pointercancel', wheelRelease);
+  wheelEl.addEventListener('lostpointercapture', wheelRelease);
+  wheelEl.addEventListener('contextmenu', e => e.preventDefault());
+  window.addEventListener('blur', () => wheelRelease(null));
+  function applyWheelMode() {
+    padLEl.classList.toggle('arrows', !settings.wheel);
+    wheelRelease(null);
+    wheelSt.disp = 0;
+    wheelSvg.style.transform = '';
+  }
+  function wheelSteer(dt) {
+    if (!settings.wheel) return null;
+    const kb = (keysKB.left ? 1 : 0) - (keysKB.right ? 1 : 0);
+    const target = wheelSt.drag ? wheelSt.angle : -kb * WHEEL_MAX;
+    const rate = wheelSt.drag ? 1600 : 520;
+    wheelSt.disp += clamp(target - wheelSt.disp, -rate * dt, rate * dt);
+    wheelSvg.style.transform = 'rotate(' + wheelSt.disp.toFixed(1) + 'deg)';
+    return clamp(-wheelSt.disp / WHEEL_LOCK, -1, 1);
+  }
 
   const sfx = (function () {
     let ctx = null, sfxBus, musicBus, padBus, arpSend, noiseBuf;
@@ -2388,12 +2464,13 @@
     let rx = -Math.cos(car.h), rz = Math.sin(car.h);
     const vf0 = car.vx * fx + car.vz * fz;
     const up = held('up'), down = held('down'), hb = held('hb');
-    const steerIn = (held('left') ? 1 : 0) - (held('right') ? 1 : 0);
+    const ws = wheelSteer(dt);
+    const steerIn = ws !== null ? ws : (held('left') ? 1 : 0) - (held('right') ? 1 : 0);
 
     const s = Math.min(1, Math.abs(vf0) / 26);
     const maxSteer = Math.min(0.42, (STEER_LOW - (STEER_LOW - STEER_HIGH) * s) * (hb ? 1.2 : 1));
     const target = steerIn * maxSteer;
-    const rate = steerIn === 0 ? 5 : STEER_RATE;
+    const rate = ws !== null ? (steerIn === 0 ? 14 : 16) : (steerIn === 0 ? 5 : STEER_RATE);
     car.steer += clamp(target - car.steer, -rate * dt, rate * dt);
     if (Math.abs(car.steer) > maxSteer) car.steer = Math.sign(car.steer) * maxSteer;
 
@@ -2639,6 +2716,12 @@
   bindPill('pillShadows', 'shadows', () => { sun.castShadow = settings.shadows; });
   bindPill('pillMarks', 'marks', () => { marks.visible = settings.marks; });
   bindPill('pillShake', 'shake', () => {});
+  const segW = $('segWheel'), segA = $('segArrows');
+  const syncSeg = () => { segW.classList.toggle('on', !!settings.wheel); segA.classList.toggle('on', !settings.wheel); };
+  segW.addEventListener('click', () => { settings.wheel = true; syncSeg(); applyWheelMode(); saveSettings(); segW.blur(); });
+  segA.addEventListener('click', () => { settings.wheel = false; syncSeg(); applyWheelMode(); saveSettings(); segA.blur(); });
+  syncSeg();
+  applyWheelMode();
   marks.visible = settings.marks;
 
   window.addEventListener('keydown', e => {
