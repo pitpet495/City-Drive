@@ -26,15 +26,6 @@
   #spd { font-size: 34px; line-height: 1; font-weight: 700; color: #ffb000; min-width: 2.2ch; text-align: right; font-variant-numeric: tabular-nums; }
   #hud .u { font-size: 14px; opacity: .8; letter-spacing: .04em; }
 
-  #hint {
-    position: fixed; z-index: 2; left: 50%; top: max(18px, env(safe-area-inset-top));
-    transform: translateX(-50%); padding: 8px 14px; border-radius: 12px;
-    background: rgba(14, 26, 40, .62); color: #fff; font-size: 15px; white-space: nowrap;
-    pointer-events: none; transition: opacity .8s ease;
-  }
-  #hint.gone { opacity: 0; }
-  @media (max-width: 560px) { #hint { top: auto; bottom: calc(max(16px, env(safe-area-inset-bottom)) + 190px); } }
-
   .tgl.on { background: #ffb000; color: #14202c; border-color: #ffd36b; }
   body.is-paused .pad { opacity: 0; pointer-events: none; }
   .pad { transition: opacity .2s ease; }
@@ -133,8 +124,9 @@
     bottom: max(18px, env(safe-area-inset-bottom));
     --k: clamp(66px, 17vmin, 96px);
   }
-  .padL { left: max(18px, env(safe-area-inset-left)); flex-direction: row; }
-  .padR { right: max(18px, env(safe-area-inset-right)); flex-direction: column; }
+  .padL { left: max(18px, env(safe-area-inset-left)); flex-direction: row; gap: 10px; }
+  .padR { right: max(18px, env(safe-area-inset-right)); flex-direction: row; align-items: center; gap: 20px; }
+  .col { display: flex; flex-direction: column; gap: 14px; }
 
   .key {
     width: var(--k); height: var(--k); padding: 0; border-radius: 22px; cursor: pointer;
@@ -178,7 +170,6 @@
 <body>
 
 <div id="hud"><span id="spd">0</span><span class="u">km/h</span><span id="dmg" title="Damage"><i></i><i></i><i></i></span></div>
-<div id="hint">Hold ▲ to drive · Space = handbrake · Arrow keys work too.</div>
 
 <div class="overlay" id="pause" role="dialog" aria-modal="true" aria-label="Pause menu">
   <div class="panel">
@@ -252,12 +243,14 @@
 
 <div class="pad padL">
   <button class="key" data-k="left" type="button" aria-label="Steer left"><svg viewBox="0 0 24 24"><path d="M15 5l-8 7 8 7"/></svg></button>
-  <button class="key" data-k="hb" type="button" aria-label="Handbrake" title="Handbrake (Space)"><svg viewBox="0 0 24 24"><g style="stroke-width:1.8"><circle cx="12" cy="12" r="5.6"/><path d="M10.4 14.8V9.2h2a1.6 1.6 0 010 3.2h-2"/><path d="M5.6 4.6A9.6 9.6 0 0 0 5.6 19.4M18.4 4.6A9.6 9.6 0 0 1 18.4 19.4"/></g></svg></button>
   <button class="key" data-k="right" type="button" aria-label="Steer right"><svg viewBox="0 0 24 24"><path d="M9 5l8 7-8 7"/></svg></button>
 </div>
 <div class="pad padR">
+  <button class="key" data-k="hb" type="button" aria-label="Handbrake" title="Handbrake (Space)"><svg viewBox="0 0 24 24"><g style="stroke-width:1.8"><circle cx="12" cy="12" r="5.6"/><path d="M10.4 14.8V9.2h2a1.6 1.6 0 010 3.2h-2"/><path d="M5.6 4.6A9.6 9.6 0 0 0 5.6 19.4M18.4 4.6A9.6 9.6 0 0 1 18.4 19.4"/></g></svg></button>
+  <div class="col">
   <button class="key" data-k="up" type="button" aria-label="Accelerate"><svg viewBox="0 0 24 24"><path d="M5 15l7-8 7 8"/></svg></button>
   <button class="key" data-k="down" type="button" aria-label="Brake and reverse"><svg viewBox="0 0 24 24"><path d="M5 9l7 8 7-8"/></svg></button>
+  </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -280,7 +273,7 @@
   const wrapAngle = a => Math.atan2(Math.sin(a), Math.cos(a));
 
   const settings = (() => {
-    const def = { music: 100, sfx: 100, shadows: true, marks: true, shake: true };
+    const def = { music: 100, sfx: 100, shadows: true, marks: true, shake: true, musicOn: true, sfxOn: true, car: 'coupe', colors: {} };
     try { return Object.assign(def, JSON.parse(localStorage.getItem('citydrive.settings') || '{}')); }
     catch (_) { return def; }
   })();
@@ -321,6 +314,7 @@
   const P = B + R;
   const HALF = (N * P + R) / 2;
   const SW = 0.4;
+  const WLIM = HALF - 0.8;
   const rc = i => -HALF + R / 2 + i * P;
   const bc = i => -HALF + R + B / 2 + i * P;
 
@@ -600,7 +594,7 @@
     add(chassis, new THREE.BoxGeometry(M.cabW - 0.12, 0.07, M.roofL), bodyMat, 0, bodyTop + M.cabH + 0.035, M.roofZ);
     [1, -1].forEach(sz => add(chassis, new THREE.BoxGeometry(M.w + 0.06, 0.2, 0.16), darkMat, 0, M.bodyY - 0.15, sz * (M.len / 2 + 0.01)));
 
-    const out = { group: g, chassis, wheels: [], steerPivots: [], bodyMat, model: M, stripeMat: null, tailMat: null, indMat: null };
+    const out = { group: g, chassis, wheels: [], steerPivots: [], bodyMat, model: M, stripeMat: null, tailMat: null, indL: null, indR: null };
     out.setColor = function (hex) {
       bodyMat.color.setHex(hex);
       if (out.stripeMat) {
@@ -632,10 +626,12 @@
       out.tailMat = new THREE.MeshBasicMaterial({ color: lightsOn ? 0x8a1212 : 0x4a1010 });
       [-1, 1].forEach(sx => add(chassis, new THREE.BoxGeometry(0.46, 0.13, 0.08), out.tailMat, sx * M.w * 0.34, M.bodyY + 0.08, -(M.len / 2 + 0.02)));
 
-      out.indMat = new THREE.MeshBasicMaterial({ color: 0x6b4a12 });
+      out.indL = new THREE.MeshBasicMaterial({ color: 0x6b4a12 });
+      out.indR = new THREE.MeshBasicMaterial({ color: 0x6b4a12 });
       [-1, 1].forEach(sx => {
-        add(chassis, new THREE.BoxGeometry(0.15, 0.11, 0.07), out.indMat, sx * (M.w / 2 - 0.09), M.bodyY + 0.1, M.len / 2 + 0.04);
-        add(chassis, new THREE.BoxGeometry(0.15, 0.11, 0.07), out.indMat, sx * (M.w / 2 - 0.09), M.bodyY + 0.1, -(M.len / 2 + 0.04));
+        const im = sx > 0 ? out.indL : out.indR;
+        add(chassis, new THREE.BoxGeometry(0.15, 0.11, 0.07), im, sx * (M.w / 2 - 0.09), M.bodyY + 0.1, M.len / 2 + 0.04);
+        add(chassis, new THREE.BoxGeometry(0.15, 0.11, 0.07), im, sx * (M.w / 2 - 0.09), M.bodyY + 0.1, -(M.len / 2 + 0.04));
       });
 
       const plateMat = plateMats[Math.floor(Math.random() * plateMats.length)];
@@ -735,6 +731,7 @@
 
   const _sP = new THREE.Matrix4(), _sB = new THREE.Matrix4(), _sL = new THREE.Matrix4(), _sOut = new THREE.Matrix4();
   const _sPos = new THREE.Vector3(), _sOne = new THREE.Vector3(1, 1, 1);
+  const _sZero = new THREE.Matrix4().makeScale(0, 0, 0);
   let lightMeshes = null;
   const LIGHT_H = { red: 4.5, yellow: 4.2, green: 3.9 };
   const LIGHT_GREEN = 6, LIGHT_YELLOW = 1.5, LIGHT_RED = 0.5;
@@ -747,16 +744,20 @@
   function signalFor(h) { return Math.abs(Math.sin(h)) > Math.abs(Math.cos(h)) ? xState : zState; }
 
   function writeLight(lg) {
-    const L = lightMeshes;
+    const L = lightMeshes, alive = lg.state === 'up';
     signLocal(lg, _sOut, 0, 0, 0, false);
     L.poles.setMatrixAt(lg.idx, _sOut); L.housings.setMatrixAt(lg.idx, _sOut);
     L.poles.instanceMatrix.needsUpdate = true; L.housings.instanceMatrix.needsUpdate = true;
-    for (const c of ['red', 'yellow', 'green']) {
+    const off = L.off[lg.axis];
+    ['red', 'yellow', 'green'].forEach((c, ci) => {
       signLocal(lg, _sOut, 0, LIGHT_H[c], -0.14, false);
       const lamp = L.lamp[lg.axis][c], glow = L.glow[lg.axis][c];
-      lamp.setMatrixAt(lg.aidx, _sOut); glow.setMatrixAt(lg.aidx, _sOut);
+      lamp.setMatrixAt(lg.aidx, alive ? _sOut : _sZero);
+      glow.setMatrixAt(lg.aidx, alive ? _sOut : _sZero);
+      off.setMatrixAt(lg.aidx * 3 + ci, alive ? _sZero : _sOut);
       lamp.instanceMatrix.needsUpdate = true; glow.instanceMatrix.needsUpdate = true;
-    }
+    });
+    off.instanceMatrix.needsUpdate = true;
   }
 
   function createTrafficLights() {
@@ -782,9 +783,10 @@
 
     const poles = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.08, 0.1, 4.5, 8).translate(0, 2.25, 0), lam(0x2a2d33), spots.length);
     const housings = new THREE.InstancedMesh(new THREE.BoxGeometry(0.35, 1.0, 0.25).translate(0, 4.2, 0), lam(0x1a1c20), spots.length);
-    lightMeshes = { poles, housings, lamp: { x: {}, z: {} }, glow: { x: {}, z: {} } };
+    lightMeshes = { poles, housings, lamp: { x: {}, z: {} }, glow: { x: {}, z: {} }, off: {} };
     [poles, housings].forEach(m => { m.castShadow = true; m.frustumCulled = false; scene.add(m); });
 
+    const offMat = new THREE.MeshBasicMaterial({ color: 0x2b2e33 });
     const lampGeo = new THREE.SphereGeometry(0.12, 8, 8), glowGeo = new THREE.SphereGeometry(0.2, 8, 8);
     for (const axis of ['x', 'z']) {
       const n = spots.filter(s => s.axis === axis).length;
@@ -798,6 +800,9 @@
         scene.add(lamp); scene.add(glow);
         lightMeshes.lamp[axis][c] = lamp; lightMeshes.glow[axis][c] = glow;
       }
+      const offMesh = new THREE.InstancedMesh(lampGeo, offMat, n * 3);
+      offMesh.frustumCulled = false; scene.add(offMesh);
+      lightMeshes.off[axis] = offMesh;
     }
 
     const counts = { x: 0, z: 0 };
@@ -988,13 +993,10 @@
   const keysKB = { left: false, right: false, up: false, down: false, hb: false };
   const keysPtr = { left: false, right: false, up: false, down: false, hb: false };
   const keyEls = {};
-  const hint = document.getElementById('hint');
-  let interacted = false;
-  function noteInput() { if (!interacted) { interacted = true; setTimeout(() => hint.classList.add('gone'), 1800); } }
 
   document.querySelectorAll('.key').forEach(el => {
     const k = el.dataset.k; keyEls[k] = el;
-    const on = e => { e.preventDefault(); keysPtr[k] = true; noteInput(); try { el.setPointerCapture(e.pointerId); } catch (_) {} };
+    const on = e => { e.preventDefault(); keysPtr[k] = true; try { el.setPointerCapture(e.pointerId); } catch (_) {} };
     const off = e => { e.preventDefault(); keysPtr[k] = false; };
     el.addEventListener('pointerdown', on);
     el.addEventListener('pointerup', off);
@@ -1006,7 +1008,7 @@
     ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right',
     ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', Space: 'hb'
   };
-  window.addEventListener('keydown', e => { const k = keyMap[e.code]; if (k) { e.preventDefault(); if (!paused && !wrecked) { keysKB[k] = true; noteInput(); } } });
+  window.addEventListener('keydown', e => { const k = keyMap[e.code]; if (k) { e.preventDefault(); if (!paused && !wrecked) { keysKB[k] = true; } } });
   window.addEventListener('keyup', e => { const k = keyMap[e.code]; if (k) { e.preventDefault(); keysKB[k] = false; } });
   window.addEventListener('blur', () => { for (const k in keysKB) { keysKB[k] = false; keysPtr[k] = false; } });
   const held = k => keysKB[k] || keysPtr[k];
@@ -1014,7 +1016,7 @@
   const sfx = (function () {
     let ctx = null, sfxBus, musicBus, padBus, arpSend, noiseBuf;
     let eng = null, skid = null, lastImpact = 0;
-    const state = { music: true, sfx: true, musicVol: settings.music / 100, sfxVol: settings.sfx / 100 };
+    const state = { music: settings.musicOn !== false, sfx: settings.sfxOn !== false, musicVol: settings.music / 100, sfxVol: settings.sfx / 100 };
     const MUSIC_LEVEL = 0.55;
     const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
 
@@ -1265,11 +1267,13 @@
 
   [['tglMusic', 'music', 'setMusic'], ['tglSfx', 'sfx', 'setSfx']].forEach(([id, key, fn]) => {
     const el = document.getElementById(id);
+    const paint = on => { el.classList.toggle('off', !on); el.setAttribute('aria-pressed', String(on)); };
+    paint(sfx.state[key]);
     el.addEventListener('click', () => {
       const on = !sfx.state[key];
       sfx[fn](on);
-      el.classList.toggle('off', !on);
-      el.setAttribute('aria-pressed', String(on));
+      paint(on);
+      settings[key + 'On'] = on; saveSettings();
       el.blur();
     });
   });
@@ -1298,7 +1302,8 @@
   const PB = { x: 0, z: 0, vx: 0, vz: 0, w: 0, invM: 1 / 1350, invI: 1 / 2400 };
 
   const carColors = { coupe: 0xe8322b, sedan: 0x2f6fe0, hatch: 0xf2c230 };
-  let playerKey = 'coupe';
+  for (const k in carColors) { const v = settings.colors && settings.colors[k]; if (Number.isInteger(v) && v >= 0 && v <= 0xffffff) carColors[k] = v; }
+  let playerKey = MODEL_KEYS.indexOf(settings.car) >= 0 ? settings.car : 'coupe';
 
   function applySpec(key) {
     const m = CAR_MODELS[key], st = m.stats;
@@ -1326,7 +1331,7 @@
     player.wheels.forEach(w => { w.rotation.x = car.spin; });
     player.steerPivots.forEach(pv => { pv.rotation.y = car.steer; });
   }
-  setPlayerCar('coupe');
+  setPlayerCar(playerKey);
   let shake = 0;
 
   const TRAFFIC_N = 10;
@@ -1377,7 +1382,8 @@
         nextKey: null, wantTurn: false, turnTo: null, signal: 0,
         isTurning: false, targetHeading: 0,
         arc: null, braking: false, steerSmooth: 0, waitTime: 0, passOffset: 0, yielding: false,
-        body: null, recover: false, recH: 0, homeH: 0, recSteer: 0, knockT: 0, gy: 0,
+        body: null, recover: false, recH: 0, homeH: 0, recSteer: 0, rv: 0, recT: 0, plan: null, follow: false, replanT: 0, blockT: 0, stuckT: 0, fails: 0, holdT: 0, lx: 0, lz: 0, wig: 1,
+        hazard: false, hazT: 0, brakeLit: false, revLit: false, knockT: 0, gy: 0,
         waitingToTurn: false 
       });
       return;
@@ -1523,25 +1529,285 @@
     const m = t.mesh.model, o = m.len / 2 - 0.9;
     const b = {
       car: t.mesh, group: t.mesh.group, key: null, x: t.x, z: t.z, h: t.h, y: t.gy || 0,
-      vx: Math.sin(t.h) * t.speed, vz: Math.cos(t.h) * t.speed, w: 0, sleep: false, traffic: t,
+      vx: Math.sin(t.h) * t.speed, vz: Math.cos(t.h) * t.speed, w: 0, sleep: false, drive: false, traffic: t,
       m: m.mass, invM: 1 / m.mass, invI: 12 / (m.mass * (m.len * m.len + m.w * m.w)),
       r: m.w / 2, offs: [o, 0, -o], reach: m.len / 2 + 1
     };
-    if (!t.recover) t.homeH = Math.round((t.isTurning ? t.targetHeading : t.h) / (Math.PI / 2)) * (Math.PI / 2);
+    t.homeH = Math.round((t.isTurning ? t.targetHeading : t.h) / (Math.PI / 2)) * (Math.PI / 2);
     t.body = b; t.knockT = 0; t.recover = false;
     t.isTurning = false; t.bz = null; t.wantTurn = false; t.waitingToTurn = false; t.turnTo = null; t.signal = 0;
     t.nextKey = null; t.yielding = false; t.passOffset = 0; t.waitTime = 0; t.speed = 0; t.braking = false;
     bodies.push(b);
   }
 
-  function releaseTraffic(t) {
+  let planUsed = false;
+  const PLAN_DS = 1.2;
+  const PLAN_STEERS = [-0.5, -0.25, 0, 0.25, 0.5];
+
+  function setInd(mesh, l, r) {
+    mesh.indL.color.setHex(l ? 0xffb020 : 0x6b4a12);
+    mesh.indR.color.setHex(r ? 0xffb020 : 0x6b4a12);
+  }
+
+  function roadSide(hc, x, z) {
+    const vert = Math.abs(Math.cos(hc)) >= Math.abs(Math.sin(hc));
+    const sgn = vert ? -Math.cos(hc) : Math.sin(hc);
+    const center = vert ? rc(nearRc(x)) : rc(nearRc(z));
+    return ((vert ? x : z) - center) * sgn;
+  }
+
+  function beginRecovery(t) {
+    const b = t.body, h = wrapAngle(b.h);
+    t.recH = Math.abs(wrapAngle(t.homeH - h)) <= 1.75 ? t.homeH : Math.round(h / (Math.PI / 2)) * (Math.PI / 2);
+    t.recover = true; t.recT = 0; t.rv = 0; t.recSteer = 0;
+    t.plan = null; t.follow = false; t.replanT = 0; t.blockT = 0; t.stuckT = 0; t.fails = 0; t.holdT = 0; t.lx = b.x; t.lz = b.z; t.wig = 1;
+    b.drive = true; b.sleep = false; b.vx = b.vz = b.w = 0;
+  }
+
+  function cancelDrive(b) {
+    if (!b.drive) return;
+    b.drive = false;
+    const t = b.traffic;
+    t.recover = false; t.knockT = 0; t.recT = 0; t.rv = 0; t.recSteer = 0; t.plan = null; t.follow = false;
+    t.braking = false; t.revLit = false;
+  }
+
+  function finishRecovery(t) {
     const b = t.body;
-    if (!b) return;
     removeBody(b);
-    t.body = null; t.x = b.x; t.z = b.z; t.h = wrapAngle(b.h);
-    t.recH = Math.abs(wrapAngle(t.homeH - t.h)) <= 1.75 ? t.homeH : Math.round(t.h / (Math.PI / 2)) * (Math.PI / 2);
-    t.recSteer = 0;
-    t.speed = 0; t.recover = true; t.knockT = 0; t.nextKey = null; t.yielding = false; t.waitTime = 0;
+    t.body = null; t.recover = false; t.recT = 0; t.plan = null; t.follow = false;
+    t.x = b.x; t.z = b.z; t.h = t.recH;
+    t.speed = Math.max(0, t.rv); t.rv = 0; t.recSteer = 0; t.braking = false; t.revLit = false;
+    t.nextKey = null; t.yielding = false; t.waitTime = 0; t.passOffset = 0;
+  }
+
+  function heapPush(h, item) {
+    h.push(item);
+    let k = h.length - 1;
+    while (k > 0) {
+      const p = (k - 1) >> 1;
+      if (h[p][0] <= item[0]) break;
+      h[k] = h[p]; k = p;
+    }
+    h[k] = item;
+  }
+  function heapPop(h) {
+    const top = h[0], last = h.pop();
+    if (h.length) {
+      let k = 0;
+      const n = h.length;
+      for (;;) {
+        let c = 2 * k + 1;
+        if (c >= n) break;
+        if (c + 1 < n && h[c + 1][0] < h[c][0]) c++;
+        if (h[c][0] >= last[0]) break;
+        h[k] = h[c]; k = c;
+      }
+      h[k] = last;
+    }
+    return top;
+  }
+
+  function makeHit(t, b, useStat, useDyn) {
+    const o = t.mesh.model.len / 2 - 0.9;
+    const stat = [], dyn = [];
+    if (useStat) {
+      for (let i = 0; i < colliders.length; i++) {
+        const c = colliders[i];
+        if (c.off || c.maxX < b.x - 46 || c.minX > b.x + 46 || c.maxZ < b.z - 46 || c.minZ > b.z + 46) continue;
+        stat.push(c);
+      }
+    }
+    if (useDyn) {
+      if (!wrecked) {
+        const fx = Math.sin(car.h), fz = Math.cos(car.h);
+        for (const po of [CAR_OFF, 0, -CAR_OFF]) dyn.push({ x: car.x + fx * po, z: car.z + fz * po, r: CAR_R + 0.35 });
+      }
+      for (const q of traffic) {
+        if (q === t || q.body) continue;
+        if (Math.abs(q.x - b.x) > 46 || Math.abs(q.z - b.z) > 46) continue;
+        dyn.push({ x: q.x, z: q.z, r: 1.95 });
+      }
+      for (const q of bodies) {
+        if (q.traffic === t) continue;
+        if (Math.abs(q.x - b.x) > 46 || Math.abs(q.z - b.z) > 46) continue;
+        dyn.push({ x: q.x, z: q.z, r: q.r + 0.4 });
+      }
+    }
+    return (x, z, h, rad) => {
+      const fx = Math.sin(h), fz = Math.cos(h);
+      for (let k = -1; k <= 1; k++) {
+        const cx = x + fx * o * k, cz = z + fz * o * k;
+        for (let i = 0; i < stat.length; i++) {
+          const c = stat[i];
+          if (cx < c.minX - rad || cx > c.maxX + rad || cz < c.minZ - rad || cz > c.maxZ + rad) continue;
+          const dx = cx - clamp(cx, c.minX, c.maxX), dz = cz - clamp(cz, c.minZ, c.maxZ);
+          if (dx * dx + dz * dz < rad * rad) return true;
+        }
+        for (let i = 0; i < dyn.length; i++) {
+          const q = dyn[i], dx = cx - q.x, dz = cz - q.z, lim = rad + q.r;
+          if (dx * dx + dz * dz < lim * lim) return true;
+        }
+      }
+      return false;
+    };
+  }
+
+  function aheadBlocked(t, b, gear, steer) {
+    const m = t.mesh.model, L = m.wheelZ * 2, rad = m.w / 2 - 0.02;
+    const hit = makeHit(t, b, false, true);
+    let x = b.x, z = b.z, h = b.h;
+    const ds = 0.8 * gear, dh = ds / L * Math.tan(steer);
+    for (let k = 0; k < 3; k++) {
+      x += Math.sin(h + dh * 0.5) * ds; z += Math.cos(h + dh * 0.5) * ds; h += dh;
+      if (hit(x, z, h, rad)) return true;
+    }
+    return false;
+  }
+
+  function planRecovery(t, b, ignoreDyn, maxExp) {
+    const m = t.mesh.model, L = m.wheelZ * 2, phys = m.w / 2, hc = t.recH;
+    const hit = makeHit(t, b, true, !ignoreDyn);
+    const rad0 = phys + 0.1 + Math.min(0.45, 0.1 * t.fails);
+    const goalOK = (x, z, h) => {
+      if (Math.abs(wrapAngle(hc - h)) > 0.5) return false;
+      if (Math.abs(roadSide(hc, x, z) - t.lat) > 2.6) return false;
+      const fx = Math.sin(h), fz = Math.cos(h);
+      for (let k = 1; k <= 5; k++) if (hit(x + fx * 1.6 * k, z + fz * 1.6 * k, h, rad0)) return false;
+      return true;
+    };
+    const hFun = (x, z, h) => Math.abs(roadSide(hc, x, z) - t.lat) + 1.8 * Math.abs(wrapAngle(hc - h));
+    const keyOf = (x, z, h, g) =>
+      ((((Math.round(x * 2) + 600) * 1400 + Math.round(z * 2) + 600) * 24 + (Math.floor((wrapAngle(h) + Math.PI) / (Math.PI / 12)) % 24)) * 2 + (g > 0 ? 1 : 0));
+
+    const root = { x: b.x, z: b.z, h: wrapAngle(b.h), g: 1, st: 0, par: -1, c: 0, n: 0 };
+    const nodes = [root], heap = [], seen = new Map();
+    const h0 = hFun(root.x, root.z, root.h);
+    heapPush(heap, [h0 * 1.5, 0]);
+    seen.set(keyOf(root.x, root.z, root.h, 1), 0);
+    let found = -1, best = 0, bestH = h0, exp = 0;
+    while (heap.length && exp < maxExp) {
+      const idx = heapPop(heap)[1];
+      exp++;
+      const n = nodes[idx];
+      if (idx > 0 && n.c > seen.get(keyOf(n.x, n.z, n.h, n.g)) + 1e-9) continue;
+      if (goalOK(n.x, n.z, n.h)) { found = idx; break; }
+      const hh = hFun(n.x, n.z, n.h);
+      if (hh < bestH) { bestH = hh; best = idx; }
+      const rad = n.n < 2 ? phys - 0.05 : rad0;
+      for (let gi = 0; gi < 2; gi++) {
+        const g = gi === 0 ? 1 : -1;
+        for (let si = 0; si < PLAN_STEERS.length; si++) {
+          const st = PLAN_STEERS[si];
+          const ds = PLAN_DS * g, dh = ds / L * Math.tan(st);
+          const x1 = n.x + Math.sin(n.h + dh * 0.5) * ds, z1 = n.z + Math.cos(n.h + dh * 0.5) * ds, h1 = wrapAngle(n.h + dh);
+          const xm = n.x + Math.sin(n.h + dh * 0.25) * ds * 0.5, zm = n.z + Math.cos(n.h + dh * 0.25) * ds * 0.5;
+          if (hit(x1, z1, h1, rad) || hit(xm, zm, n.h + dh * 0.5, rad)) continue;
+          const sd = roadSide(hc, x1, z1);
+          let c = n.c + PLAN_DS * (g < 0 ? 1.35 : 1) + Math.abs(st) * (g < 0 ? 0.04 : 0.2) + Math.abs(st - n.st) * 0.4;
+          if (n.n > 0 && g !== n.g) c += 6;
+          if (sd < 0) c += PLAN_DS * 4; else if (sd > 7.2) c += PLAN_DS * 1.5;
+          const k = keyOf(x1, z1, h1, g), old = seen.get(k);
+          if (old !== undefined && old <= c) continue;
+          seen.set(k, c);
+          nodes.push({ x: x1, z: z1, h: h1, g, st, par: idx, c, n: n.n + 1 });
+          heapPush(heap, [c + 1.5 * hFun(x1, z1, h1), nodes.length - 1]);
+        }
+      }
+    }
+    const reached = found >= 0;
+    if (!reached) {
+      if (bestH < h0 - 0.5 && best > 0) found = best;
+      else return { segs: [], reached: false };
+    }
+    const steps = [];
+    for (let i = found; nodes[i].par >= 0; i = nodes[i].par) steps.push(nodes[i]);
+    steps.reverse();
+    const segs = [];
+    for (const sp of steps) {
+      const last = segs[segs.length - 1];
+      if (last && last.gear === sp.g && last.steer === sp.st) last.len += PLAN_DS;
+      else segs.push({ gear: sp.g, steer: sp.st, len: PLAN_DS });
+    }
+    return { segs, reached };
+  }
+
+  function driveRecovery(t, b, dt) {
+    const m = t.mesh.model, hc = t.recH, L = m.wheelZ * 2;
+    const fx = Math.sin(b.h), fz = Math.cos(b.h);
+    const d = roadSide(hc, b.x, b.z) - t.lat, e = wrapAngle(hc - b.h);
+    t.recT += dt; t.replanT -= dt; t.holdT = Math.max(0, t.holdT - dt);
+    if (!t.plan && Math.abs(d) < 0.25 && Math.abs(e) < 0.06 && Math.abs(t.rv) < 4) { finishRecovery(t); return; }
+    if (!t.plan && t.fails >= 4 && t.recT > 10 && Math.abs(e) < 0.3 && Math.abs(d) < 2 && Math.abs(t.rv) < 0.5) { finishRecovery(t); return; }
+
+    if (!t.follow && !t.plan && t.replanT <= 0 && t.holdT <= 0 && !planUsed) {
+      planUsed = true;
+      const cap = t.recT > 8 ? 5200 : 2600;
+      let r = planRecovery(t, b, false, cap);
+      if (!r.reached && !r.segs.length) r = planRecovery(t, b, true, cap);
+      t.replanT = 0.45; t.blockT = 0; t.stuckT = 0;
+      if (r.reached && !r.segs.length) t.follow = true;
+      else if (r.segs.length) t.plan = { segs: r.segs, i: 0, remain: r.segs[0].len, reached: r.reached };
+      else {
+        t.wig = -t.wig; t.fails++;
+        const wl = 3 + Math.min(4, t.fails) * 1.2;
+        t.plan = { segs: [{ gear: t.wig, steer: Math.random() < 0.5 ? 0.5 : -0.5, len: wl }], i: 0, remain: wl, reached: false };
+      }
+    }
+
+    let gear = 0, steer = 0, vcap = 99, vmax = 3.4;
+    const wasStill = Math.abs(t.rv) < 0.6;
+    if (t.follow) {
+      gear = 1;
+      const hDes = hc + clamp(Math.atan2(0.7 * d, Math.abs(t.rv) + 2.5), -0.75, 0.75);
+      steer = clamp(wrapAngle(hDes - b.h) * 2.5, -0.5, 0.5);
+    } else if (t.plan) {
+      const sg = t.plan.segs[t.plan.i], nx = t.plan.segs[t.plan.i + 1];
+      gear = sg.gear; steer = sg.steer;
+      const stopAfter = nx ? nx.gear !== sg.gear : sg.gear < 0;
+      if (stopAfter) vcap = Math.sqrt(2 * 4.5 * Math.max(0, t.plan.remain)) + 0.25;
+      vmax = gear > 0 ? 3.4 : 3.2;
+    }
+
+    let tv = 0, blocked = false;
+    if (gear !== 0) {
+      blocked = aheadBlocked(t, b, gear, steer);
+      tv = blocked ? 0 : gear * Math.min(vmax, vcap);
+    }
+    if (gear !== 0 && !blocked && wasStill && Math.sign(t.rv) !== -gear) t.rv = Math.abs(t.rv) < 0.5 ? gear * 0.5 : t.rv;
+    t.rv += clamp(tv - t.rv, -8 * dt, 8 * dt);
+
+    if (blocked) {
+      t.blockT += dt;
+      if (t.blockT > 0.7) { t.plan = null; t.follow = false; t.replanT = 0; t.blockT = 0; t.fails++; t.holdT = Math.min(3, 0.8 * t.fails); }
+    } else t.blockT = 0;
+
+    const moved = Math.hypot(b.x - t.lx, b.z - t.lz);
+    t.lx = b.x; t.lz = b.z;
+    if (Math.abs(t.rv) > 0.4 && moved < 0.2 * Math.abs(t.rv) * dt) {
+      t.stuckT += dt;
+      if (t.stuckT > 0.9) { t.plan = null; t.follow = false; t.replanT = 0; t.stuckT = 0; t.fails++; }
+    } else t.stuckT = 0;
+
+    if (t.plan) {
+      const adv = t.rv * t.plan.segs[t.plan.i].gear * dt;
+      if (adv > 0) t.plan.remain -= adv;
+      if (t.plan.remain <= 0) {
+        t.plan.i++;
+        if (t.plan.i >= t.plan.segs.length) {
+          const reached = t.plan.reached;
+          t.plan = null;
+          if (reached) t.follow = true; else t.replanT = 0;
+        } else t.plan.remain = t.plan.segs[t.plan.i].len;
+      }
+    }
+
+    b.sleep = false;
+    b.vx = fx * t.rv; b.vz = fz * t.rv;
+    b.w = gear !== 0 ? t.rv / L * Math.tan(steer) : 0;
+    t.recSteer = gear !== 0 ? steer : 0;
+    t.revLit = t.rv < -0.1;
+    t.braking = !t.revLit && (Math.abs(t.rv) < 0.3 || Math.abs(tv) < Math.abs(t.rv) - 0.2);
   }
 
   function circlesTouch(ax0, az0, afx, afz, aOffs, ar, bx0, bz0, bfx, bfz, bOffs, br) {
@@ -1571,7 +1837,7 @@
       const m = t.mesh.model, o = m.len / 2 - 0.9, tfx = Math.sin(t.h), tfz = Math.cos(t.h);
       let hit = false;
       for (const b of bodies) {
-        if (b.sleep) continue;
+        if (b.sleep || b.drive) continue;
         const dx = b.x - t.x, dz = b.z - t.z, lim = m.len / 2 + 1 + b.reach;
         if (dx * dx + dz * dz > lim * lim) continue;
         if (circlesTouch(t.x, t.z, tfx, tfz, [o, 0, -o], m.w / 2, b.x, b.z, Math.sin(b.h), Math.cos(b.h), b.offs, b.r)) { hit = true; break; }
@@ -1581,10 +1847,12 @@
   }
 
   function updateTraffic(dt) {
+    planUsed = false;
     const blink = (performance.now() % 900) < 450;
     for (let i = traffic.length - 1; i >= 0; i--) {
       const t = traffic[i];
-      if (Math.hypot(t.x - car.x, t.z - car.z) > 240) {
+      const dist = Math.hypot(t.x - car.x, t.z - car.z);
+      if (dist > 240 || (t.recT > 40 && dist > 50)) {
         if (t.body) removeBody(t.body);
         scene.remove(t.mesh.group); disposeCar(t.mesh); traffic.splice(i, 1); spawnTraffic(false);
         continue;
@@ -1592,27 +1860,22 @@
 
       if (t.body) {
         const b = t.body;
-        t.x = b.x; t.z = b.z; t.h = b.h; t.speed = 0; t.braking = false; t.signal = 0;
+        if (b.drive) driveRecovery(t, b, dt);
+        else { t.braking = false; t.revLit = false; }
+        if (!t.body) continue;
+        t.x = b.x; t.z = b.z; t.h = b.h; t.speed = 0; t.signal = 0;
         const along = b.vx * Math.sin(b.h) + b.vz * Math.cos(b.h);
         t.spin += (along / t.mesh.model.wheelR) * dt;
         t.mesh.wheels.forEach(w => { w.rotation.x = t.spin; });
-        t.mesh.tailMat.color.setHex(0x8a1212);
-        t.mesh.indMat.color.setHex(0x6b4a12);
-        if (b.sleep) { t.knockT += dt; if (t.knockT > 0.6) releaseTraffic(t); }
-        else t.knockT = 0;
+        t.steerSmooth += clamp((b.drive ? t.recSteer : 0) - t.steerSmooth, -14 * dt, 14 * dt);
+        t.mesh.steerPivots.forEach(p => { p.rotation.y = t.steerSmooth; });
+        t.mesh.tailMat.color.setHex(t.revLit ? 0xf2f2f2 : (t.braking ? 0xff2a2a : 0x8a1212));
+        setInd(t.mesh, false, false);
+        if (!b.drive) {
+          if (b.sleep) { t.knockT += dt; if (t.knockT > 0.6) beginRecovery(t); }
+          else t.knockT = 0;
+        }
         continue;
-      }
-      if (t.recover) {
-        const hc = t.recH;
-        const vert = Math.abs(Math.cos(hc)) >= Math.abs(Math.sin(hc));
-        const sgn = vert ? -Math.cos(hc) : Math.sin(hc);
-        const center = vert ? rc(nearRc(t.x)) : rc(nearRc(t.z));
-        const d = ((vert ? t.x : t.z) - center) * sgn - (t.lat + t.passOffset);
-        const hDes = hc + clamp(Math.atan2(0.7 * d, t.speed + 2.5), -0.75, 0.75);
-        const steer = clamp(wrapAngle(hDes - t.h) * 2.5, -0.5, 0.5);
-        t.recSteer = steer;
-        t.h += (t.speed / 2.7) * Math.tan(steer) * dt;
-        if (Math.abs(d) < 0.15 && Math.abs(wrapAngle(hc - t.h)) < 0.05) { t.h = hc; t.recover = false; t.recSteer = 0; }
       }
 
       const fx = Math.sin(t.h), fz = Math.cos(t.h);
@@ -1629,7 +1892,7 @@
           }
           if (ni.f > 2 && intersectionOccupied(t, ni)) t.yielding = true;
           else if (ni.f > 8) t.yielding = false;
-          if (t.wantTurn && !t.recover && ni.f <= TURN_START) {
+          if (t.wantTurn && ni.f <= TURN_START) {
             if (!intersectionOccupied(t, ni)) startArc(t, ni);
             else t.waitingToTurn = true;
           }
@@ -1652,7 +1915,7 @@
         t.z += fz * t.speed * dt;
         const ii = nearRc(t.x), ij = nearRc(t.z);
         const inBox = Math.abs(t.z - rc(ij)) < R * 0.55 && Math.abs(t.x - rc(ii)) < R * 0.55;
-        if (!inBox && !t.recover) {
+        if (!inBox) {
           let center, cur;
           if (Math.abs(fz) >= Math.abs(fx)) { center = rc(ii); cur = (t.x - center) * rx; }
           else { center = rc(ij); cur = (t.z - center) * rz; }
@@ -1714,7 +1977,6 @@
       }
       if (!t.isTurning && ni0 && t.wantTurn && ni0.f < 24) target = Math.min(target, 5.4);
       target = Math.min(target, lightCap);
-      if (t.recover) target = Math.min(target, 3.5);
       if (lightCap < t.speed - 0.3) t.braking = true;
       if (ob && !ob.oncoming && ob.d2 < 30 && !t.yielding) {
         const ahead = ob.body ? null : carAhead(t, ob);
@@ -1731,8 +1993,21 @@
       } else if (!t.yielding) {
         if (!ob || ob.f > 14) t.passOffset = 0;
       }
+      let crashBlock = false;
+      if (ob && !ob.oncoming) {
+        if (ob.body) crashBlock = true;
+        else {
+          const ahead = carAhead(t, ob);
+          if (ahead === 'player') crashBlock = playerCrashed();
+          else if (ahead && (ahead.hazard || ahead.body)) crashBlock = true;
+        }
+      }
+      t.hazT = crashBlock && t.speed < 2.5 ? 1.2 : Math.max(0, t.hazT - dt);
+      t.hazard = t.hazT > 0;
+      const dv = target - t.speed;
       t.speed += clamp(target - t.speed, -16 * dt, 5.5 * dt);
       if (t.speed < 0.01 && t.braking) t.speed = 0;
+      t.brakeLit = t.braking || dv < -0.15 || (t.speed < 0.3 && target < 0.3);
 
       for (const o of traffic) {
         if (o === t) continue;
@@ -1750,11 +2025,11 @@
       g.rotation.y = t.h;
       t.spin += (t.speed / t.mesh.model.wheelR) * dt;
       t.mesh.wheels.forEach(w => { w.rotation.x = t.spin; });
-      const steerTarget = t.isTurning ? clamp(wrapAngle(t.targetHeading - t.h) * 0.9, -0.45, 0.45) : (t.recover ? t.recSteer : 0);
+      const steerTarget = t.isTurning ? clamp(wrapAngle(t.targetHeading - t.h) * 0.9, -0.45, 0.45) : 0;
       t.steerSmooth += clamp(steerTarget - t.steerSmooth, -3 * dt, 3 * dt);
       t.mesh.steerPivots.forEach(p => { p.rotation.y = t.steerSmooth; });
-      t.mesh.tailMat.color.setHex(t.braking ? 0xff2a2a : 0x8a1212);
-      t.mesh.indMat.color.setHex(t.signal !== 0 && blink ? 0xffb020 : 0x6b4a12);
+      t.mesh.tailMat.color.setHex(t.brakeLit ? 0xff2a2a : 0x8a1212);
+      setInd(t.mesh, (t.signal === 1 || t.hazard) && blink, (t.signal === -1 || t.hazard) && blink);
     }
   }
 
@@ -1852,8 +2127,10 @@
     return ((u - iu) * P <= B && (v - iv) * P <= B) ? SW : 0;
   }
 
-  let crashes = 0, lastCrashT = 0;
+  let crashes = 0, lastCrashT = 0, lastImpactT = -1e9;
+  function playerCrashed() { return performance.now() - lastImpactT < 25000 && Math.hypot(car.vx, car.vz) < 1.5; }
   function registerCrash(j) {
+    if (j > 2.0) lastImpactT = performance.now();
     if (j < 5.5 || wrecked) return;
     const now = performance.now();
     if (now - lastCrashT < 800) return;
@@ -1947,6 +2224,7 @@
 
   function integrateBody(b, dt) {
     if (b.sleep) return;
+    if (b.drive) { b.x += b.vx * dt; b.z += b.vz * dt; b.h += b.w * dt; return; }
     const sp = Math.hypot(b.vx, b.vz);
     if (sp > 0) { const k = Math.max(0, sp - MU_SLIDE * dt) / sp; b.vx *= k; b.vz *= k; }
     if (b.w !== 0) b.w = Math.sign(b.w) * Math.max(0, Math.abs(b.w) - ROT_FRIC * dt);
@@ -2013,6 +2291,7 @@
         car.x = PB.x; car.z = PB.z; car.vx = PB.vx; car.vz = PB.vz;
         car.wKick = clamp(car.wKick + PB.w, -3, 3);
         b.sleep = false;
+        if (b.drive) cancelDrive(b);
         if (hit > 0) {
           const dv = hit * PB.invM;
           shake = Math.max(shake, Math.min(1, dv / 14));
@@ -2093,7 +2372,11 @@
       trafficVsBodies();
       playerVsBodies();
       bodiesVsBodies();
-      for (const b of bodies) if (!b.sleep) bodyVsStatic(b);
+      for (const b of bodies) {
+        if (b.sleep) continue;
+        bodyVsStatic(b);
+        if (b.traffic) { b.x = clamp(b.x, -WLIM, WLIM); b.z = clamp(b.z, -WLIM, WLIM); }
+      }
     }
     collide();
     for (const b of bodies) if (!b.sleep) placeBody(b, false);
@@ -2163,6 +2446,7 @@
     car.x += car.vx * dt; car.z += car.vz * dt;
     collide();
     stepWorld(dt);
+    car.x = clamp(car.x, -WLIM, WLIM); car.z = clamp(car.z, -WLIM, WLIM);
 
     car.y += (groundHeight(car.x, car.z) - car.y) * Math.min(1, dt * 14);
 
@@ -2236,16 +2520,17 @@
       el.classList.toggle('sel', sel); el.setAttribute('aria-checked', String(sel));
     });
   }
+  function saveGarage() { settings.car = playerKey; settings.colors = Object.assign({}, carColors); saveSettings(); }
   function pickColor(hex) {
     carColors[playerKey] = hex;
     player.setColor(hex);
     if (pv && pv.car) pv.car.setColor(hex);
-    dirty = true; renderGarage();
+    dirty = true; renderGarage(); saveGarage();
   }
   function cycleCar(d) {
     const i = (MODEL_KEYS.indexOf(playerKey) + d + MODEL_KEYS.length) % MODEL_KEYS.length;
     setPlayerCar(MODEL_KEYS[i]);
-    refreshPreviewCar(); renderGarage(); dirty = true;
+    refreshPreviewCar(); renderGarage(); dirty = true; saveGarage();
   }
 
   let pv = null;
@@ -2354,6 +2639,7 @@
   bindPill('pillShadows', 'shadows', () => { sun.castShadow = settings.shadows; });
   bindPill('pillMarks', 'marks', () => { marks.visible = settings.marks; });
   bindPill('pillShake', 'shake', () => {});
+  marks.visible = settings.marks;
 
   window.addEventListener('keydown', e => {
     if (wrecked && (e.code === 'KeyR' || e.code === 'Enter') && !e.repeat) {
