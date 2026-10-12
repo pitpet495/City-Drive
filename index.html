@@ -4,6 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>City Drive</title>
+<script>
+  // Runs before anything is drawn: if the saved steering mode is "arrows", flag <html> right away
+  // so the on-screen wheel never appears while three.js and the city are still loading.
+  try { if (JSON.parse(localStorage.getItem('citydrive.settings') || '{}').wheel === false) document.documentElement.classList.add('arrows'); } catch (e) {}
+</script>
 <style>
   html, body {
     margin: 0; height: 100%; overflow: hidden; background: #bcd5e8;
@@ -134,8 +139,8 @@
   }
   .wheel svg { width: 100%; height: 100%; display: block; will-change: transform; pointer-events: none; }
   .wheel.drag { cursor: grabbing; }
-  .padL.arrows .wheel { display: none; }
-  .padL:not(.arrows) .key { display: none; }
+  html.arrows .padL .wheel { display: none; }
+  html:not(.arrows) .padL .key { display: none; }
 
   .key {
     width: var(--k); height: var(--k); padding: 0; border-radius: 22px; cursor: pointer;
@@ -149,6 +154,9 @@
   .key.pressed { background: #ffb000; color: #14202c; border-color: #ffd36b; transform: scale(.94); }
   .key:focus-visible { box-shadow: 0 0 0 3px #fff; }
 
+  .shead { display: flex; align-items: center; gap: 8px; margin: 20px 0 2px; font-size: 12px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: #ffb000; }
+  .shead::after { content: ''; flex: 1; height: 1px; background: rgba(255, 255, 255, .18); }
+  .snote { margin: 0 0 4px; font-size: 13px; line-height: 1.4; color: rgba(255, 255, 255, .65); }
   .srow { display: flex; align-items: center; gap: 12px; margin: 13px 0; font-size: 15px; }
   .srow > label { flex: none; width: 112px; color: rgba(255, 255, 255, .85); }
   .srow output { flex: none; width: 34px; text-align: right; font-variant-numeric: tabular-nums; opacity: .8; font-size: 13px; }
@@ -229,6 +237,10 @@
       <div class="srow"><label>Skid marks</label><button class="pill on" id="pillMarks" type="button" role="switch" aria-checked="true" aria-label="Skid marks"></button></div>
       <div class="srow"><label>Steering</label><div class="seg" role="group" aria-label="Steering controls"><button type="button" id="segWheel">Wheel</button><button type="button" id="segArrows">Arrows</button></div></div>
       <div class="srow"><label>Camera shake</label><button class="pill on" id="pillShake" type="button" role="switch" aria-checked="true" aria-label="Camera shake"></button></div>
+
+      <div class="shead">Experiments</div>
+      <div class="srow"><label>Orbit camera</label><button class="pill" id="pillOrbit" type="button" role="switch" aria-checked="false" aria-label="Orbit camera (experimental)"></button></div>
+      <p class="snote">Drag on the game to rotate around the car and tilt the view. Pinch or scroll to zoom, double-tap to reset.</p>
     </section>
   </div>
 </div>
@@ -298,7 +310,7 @@
   const wrapAngle = a => Math.atan2(Math.sin(a), Math.cos(a));
 
   const settings = (() => {
-    const def = { music: 100, sfx: 100, shadows: true, marks: true, shake: true, wheel: true, musicOn: true, sfxOn: true, car: 'coupe', colors: {} };
+    const def = { music: 100, sfx: 100, shadows: true, marks: true, shake: true, wheel: true, orbit: false, musicOn: true, sfxOn: true, car: 'coupe', colors: {} };
     try { return Object.assign(def, JSON.parse(localStorage.getItem('citydrive.settings') || '{}')); }
     catch (_) { return def; }
   })();
@@ -1075,6 +1087,7 @@
   window.addEventListener('blur', () => wheelRelease(null));
   function applyWheelMode() {
     padLEl.classList.toggle('arrows', !settings.wheel);
+    document.documentElement.classList.toggle('arrows', !settings.wheel);
     wheelRelease(null);
     wheelSt.disp = 0;
     wheelSvg.style.transform = '';
@@ -2716,6 +2729,55 @@
   bindPill('pillShadows', 'shadows', () => { sun.castShadow = settings.shadows; });
   bindPill('pillMarks', 'marks', () => { marks.visible = settings.marks; });
   bindPill('pillShake', 'shake', () => {});
+  bindPill('pillOrbit', 'orbit', () => { if (!settings.orbit) resetOrbit(); });
+
+  /* ---------- experimental orbit camera ---------- */
+  const PITCH0 = Math.atan2(1, 0.56);   // the default aerial angle (camera height : distance = 1 : 0.56)
+  const orbit = { yaw: 0, pitch: PITCH0, zoom: 1, tYaw: 0, tPitch: PITCH0, tZoom: 1 };
+  function resetOrbit() {
+    orbit.yaw = wrapAngle(orbit.yaw);          // take the short way round when returning
+    orbit.tYaw = 0; orbit.tPitch = PITCH0; orbit.tZoom = 1;
+  }
+  (function () {
+    const cv = renderer.domElement, ptrs = new Map();
+    let pinch0 = 1, zoom0 = 1, lastTap = 0;
+    cv.addEventListener('pointerdown', e => {
+      if (!settings.orbit || paused) return;
+      ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+      if (ptrs.size === 2) {
+        const [a, b] = [...ptrs.values()];
+        pinch0 = Math.hypot(a.x - b.x, a.y - b.y) || 1; zoom0 = orbit.tZoom;
+      } else if (ptrs.size === 1) {
+        const now = performance.now();
+        if (now - lastTap < 320) resetOrbit();
+        lastTap = now;
+      }
+    });
+    cv.addEventListener('pointermove', e => {
+      const p = ptrs.get(e.pointerId);
+      if (!p || !settings.orbit) return;
+      const dx = e.clientX - p.x, dy = e.clientY - p.y;
+      p.x = e.clientX; p.y = e.clientY;
+      if (ptrs.size === 1) {
+        orbit.tYaw -= dx * 0.008;
+        orbit.tPitch = clamp(orbit.tPitch + dy * 0.006, 0.14, 1.5);
+      } else if (ptrs.size === 2) {
+        const [a, b] = [...ptrs.values()];
+        const d = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+        orbit.tZoom = clamp(zoom0 * pinch0 / d, 0.3, 1.7);
+      }
+    });
+    const up = e => { ptrs.delete(e.pointerId); };
+    cv.addEventListener('pointerup', up);
+    cv.addEventListener('pointercancel', up);
+    cv.addEventListener('lostpointercapture', up);
+    cv.addEventListener('wheel', e => {
+      if (!settings.orbit || paused) return;
+      e.preventDefault();
+      orbit.tZoom = clamp(orbit.tZoom * Math.exp(e.deltaY * 0.0012), 0.3, 1.7);
+    }, { passive: false });
+  })();
   const segW = $('segWheel'), segA = $('segArrows');
   const syncSeg = () => { segW.classList.toggle('on', !!settings.wheel); segA.classList.toggle('on', !settings.wheel); };
   segW.addEventListener('click', () => { settings.wheel = true; syncSeg(); applyWheelMode(); saveSettings(); segW.blur(); });
@@ -2791,7 +2853,15 @@
     shake *= Math.exp(-6 * dt);
     let sx = 0, sz = 0;
     if (settings.shake) { sx = (Math.random() - 0.5) * shake * 1.4; sz = (Math.random() - 0.5) * shake * 1.4; }
-    camera.position.set(camTarget.x + sx, camH, camTarget.z + camD + sz);
+    // Orbit camera: with the defaults (yaw 0, pitch PITCH0, zoom 1) this is exactly the normal aerial view.
+    const ko = 1 - Math.exp(-10 * dt);
+    orbit.yaw += (orbit.tYaw - orbit.yaw) * ko;
+    orbit.pitch += (orbit.tPitch - orbit.pitch) * ko;
+    orbit.zoom += (orbit.tZoom - orbit.zoom) * ko;
+    const camDist = Math.hypot(camH, camD) * orbit.zoom, cp = Math.cos(orbit.pitch);
+    camera.position.set(camTarget.x + sx + Math.sin(orbit.yaw) * cp * camDist,
+                        Math.sin(orbit.pitch) * camDist,
+                        camTarget.z + sz + Math.cos(orbit.yaw) * cp * camDist);
     camera.lookAt(camTarget.x, 0, camTarget.z);
 
     sun.position.set(car.x + SUN_OFFSET.x, SUN_OFFSET.y, car.z + SUN_OFFSET.z);
