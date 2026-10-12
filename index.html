@@ -5,8 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>City Drive</title>
 <script>
-  // Runs before anything is drawn: if the saved steering mode is "arrows", flag <html> right away
-  // so the on-screen wheel never appears while three.js and the city are still loading.
   try { if (JSON.parse(localStorage.getItem('citydrive.settings') || '{}').wheel === false) document.documentElement.classList.add('arrows'); } catch (e) {}
 </script>
 <style>
@@ -236,6 +234,7 @@
       <div class="srow"><label>Shadows</label><button class="pill on" id="pillShadows" type="button" role="switch" aria-checked="true" aria-label="Shadows"></button></div>
       <div class="srow"><label>Skid marks</label><button class="pill on" id="pillMarks" type="button" role="switch" aria-checked="true" aria-label="Skid marks"></button></div>
       <div class="srow"><label>Steering</label><div class="seg" role="group" aria-label="Steering controls"><button type="button" id="segWheel">Wheel</button><button type="button" id="segArrows">Arrows</button></div></div>
+      <div class="srow"><label>Chase camera</label><button class="pill on" id="pillChase" type="button" role="switch" aria-checked="true" aria-label="Chase camera"></button></div>
       <div class="srow"><label>Camera shake</label><button class="pill on" id="pillShake" type="button" role="switch" aria-checked="true" aria-label="Camera shake"></button></div>
 
       <div class="shead">Experiments</div>
@@ -310,10 +309,11 @@
   const wrapAngle = a => Math.atan2(Math.sin(a), Math.cos(a));
 
   const settings = (() => {
-    const def = { music: 100, sfx: 100, shadows: true, marks: true, shake: true, wheel: true, orbit: false, musicOn: true, sfxOn: true, car: 'coupe', colors: {} };
+    const def = { music: 100, sfx: 100, shadows: true, marks: true, shake: true, wheel: true, chase: true, orbit: false, musicOn: true, sfxOn: true, car: 'coupe', colors: {} };
     try { return Object.assign(def, JSON.parse(localStorage.getItem('citydrive.settings') || '{}')); }
     catch (_) { return def; }
   })();
+  const chase = { yaw: 0, snap: true };
   function saveSettings() { try { localStorage.setItem('citydrive.settings', JSON.stringify(settings)); } catch (_) {} }
 
   const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -2679,6 +2679,7 @@
 
   function resetGame() {
     const sp = randomRoadPoint();
+    chase.snap = true;
     Object.assign(car, { x: sp.x, z: sp.z, h: sp.h, vx: 0, vz: 0, steer: 0, y: 0, spin: 0,
       pitch: 0, pitchV: 0, roll: 0, rollV: 0, accelLong: 0, vf: 0, vl: 0, yawRate: 0,
       braking: false, reversing: false, hb: false, wKick: 0 });
@@ -2729,13 +2730,13 @@
   bindPill('pillShadows', 'shadows', () => { sun.castShadow = settings.shadows; });
   bindPill('pillMarks', 'marks', () => { marks.visible = settings.marks; });
   bindPill('pillShake', 'shake', () => {});
+  bindPill('pillChase', 'chase', () => { chase.snap = true; });
   bindPill('pillOrbit', 'orbit', () => { if (!settings.orbit) resetOrbit(); });
 
-  /* ---------- experimental orbit camera ---------- */
-  const PITCH0 = Math.atan2(1, 0.56);   // the default aerial angle (camera height : distance = 1 : 0.56)
+  const PITCH0 = Math.atan2(1, 0.56);
   const orbit = { yaw: 0, pitch: PITCH0, zoom: 1, tYaw: 0, tPitch: PITCH0, tZoom: 1 };
   function resetOrbit() {
-    orbit.yaw = wrapAngle(orbit.yaw);          // take the short way round when returning
+    orbit.yaw = wrapAngle(orbit.yaw);
     orbit.tYaw = 0; orbit.tPitch = PITCH0; orbit.tZoom = 1;
   }
   (function () {
@@ -2853,15 +2854,18 @@
     shake *= Math.exp(-6 * dt);
     let sx = 0, sz = 0;
     if (settings.shake) { sx = (Math.random() - 0.5) * shake * 1.4; sz = (Math.random() - 0.5) * shake * 1.4; }
-    // Orbit camera: with the defaults (yaw 0, pitch PITCH0, zoom 1) this is exactly the normal aerial view.
     const ko = 1 - Math.exp(-10 * dt);
+    const chaseTarget = car.h + Math.PI;
+    if (chase.snap || !settings.chase) { chase.yaw = settings.chase ? chaseTarget : 0; chase.snap = false; }
+    else chase.yaw += wrapAngle(chaseTarget - chase.yaw) * (1 - Math.exp(-(1.6 + 2.4 * sf) * dt));
     orbit.yaw += (orbit.tYaw - orbit.yaw) * ko;
+    const yawTotal = chase.yaw + orbit.yaw;
     orbit.pitch += (orbit.tPitch - orbit.pitch) * ko;
     orbit.zoom += (orbit.tZoom - orbit.zoom) * ko;
     const camDist = Math.hypot(camH, camD) * orbit.zoom, cp = Math.cos(orbit.pitch);
-    camera.position.set(camTarget.x + sx + Math.sin(orbit.yaw) * cp * camDist,
+    camera.position.set(camTarget.x + sx + Math.sin(yawTotal) * cp * camDist,
                         Math.sin(orbit.pitch) * camDist,
-                        camTarget.z + sz + Math.cos(orbit.yaw) * cp * camDist);
+                        camTarget.z + sz + Math.cos(yawTotal) * cp * camDist);
     camera.lookAt(camTarget.x, 0, camTarget.z);
 
     sun.position.set(car.x + SUN_OFFSET.x, SUN_OFFSET.y, car.z + SUN_OFFSET.z);
