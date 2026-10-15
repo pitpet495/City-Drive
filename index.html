@@ -345,7 +345,7 @@
   const _snapP = new THREE.Vector3();
   const _upVec = new THREE.Vector3(0, 1, 0);
 
-  const N = 4;
+  const N = 6;
   const B = 40;
   const R = 14;
   const P = B + R;
@@ -518,7 +518,7 @@
   function buildBlock(cx, cz) {
     const dist = Math.hypot(cx, cz);
     const downtown = dist < 50;
-    const tall = Math.max(0, 1 - dist / 125);
+    const tall = Math.max(0, 1 - dist / 190);
 
     if (!downtown && rng() < 0.16) {
       const w = B - 6 - rr(0, 2), d = B - 6 - rr(0, 2);
@@ -550,24 +550,31 @@
   }
 
   const plateMats = (function () {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    const letters = '\u0391\u0392\u0395\u0396\u0397\u0399\u039A\u039C\u039D\u039F\u03A1\u03A4\u03A5\u03A7';
     const list = [];
-    for (let v = 0; v < 8; v++) {
-      const c = document.createElement('canvas'); c.width = 128; c.height = 32;
+    for (let v = 0; v < 24; v++) {
+      const c = document.createElement('canvas'); c.width = 256; c.height = 64;
       const g = c.getContext('2d');
-      g.fillStyle = '#e9e9e4'; g.fillRect(0, 0, 128, 32);
-      g.strokeStyle = '#232323'; g.lineWidth = 4; g.strokeRect(2, 2, 124, 28);
+      g.fillStyle = '#f2f2ee'; g.fillRect(0, 0, 256, 64);
+      g.strokeStyle = '#232323'; g.lineWidth = 4; g.strokeRect(2, 2, 252, 60);
+      g.fillStyle = '#003399'; g.fillRect(4, 4, 34, 56);
+      g.fillStyle = '#ffcc00';
+      for (let i = 0; i < 12; i++) {
+        const an = i / 12 * Math.PI * 2;
+        g.beginPath(); g.arc(21 + Math.cos(an) * 10, 22 + Math.sin(an) * 10, 1.8, 0, 6.29); g.fill();
+      }
+      g.fillStyle = '#fff'; g.font = 'bold 15px Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText('GR', 21, 48);
       g.fillStyle = '#181818';
-      g.font = 'bold 21px "Arial Narrow", Arial, sans-serif';
-      g.textAlign = 'center'; g.textBaseline = 'middle';
-      let s = '';
-      for (let i = 0; i < 3; i++) s += chars[Math.floor(Math.random() * 36)];
-      s += '-';
-      for (let i = 0; i < 3; i++) s += chars[Math.floor(Math.random() * 36)];
-      g.fillText(s, 64, 18);
-      const t = new THREE.CanvasTexture(c);
-      t.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
-      list.push(new THREE.MeshBasicMaterial({ map: t }));
+      g.font = 'bold 40px Arial, sans-serif';
+      let t = '';
+      for (let i = 0; i < 3; i++) t += letters[Math.floor(Math.random() * letters.length)];
+      t += '-';
+      for (let i = 0; i < 4; i++) t += Math.floor(Math.random() * 10);
+      g.fillText(t, 148, 35);
+      const tex = new THREE.CanvasTexture(c);
+      tex.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
+      list.push(new THREE.MeshBasicMaterial({ map: tex }));
     }
     return list;
   })();
@@ -595,7 +602,51 @@
       stats: { speed: 4, accel: 6, handling: 9, brake: 7, grip: 8, stability: 4 }
     }
   };
-  const MODEL_KEYS = ['coupe', 'sedan', 'hatch'];
+  Object.assign(CAR_MODELS, {
+    suv: {
+      name: 'City SUV', desc: 'Tall and heavy. Stable and forgiving, but it is no sprinter.',
+      len: 4.6, w: 1.95, bodyH: 0.62, bodyY: 0.74, cabW: 1.72, cabH: 0.7, cabL: 2.9, cabZ: -0.45,
+      roofL: 2.6, roofZ: -0.48, wheelX: 0.98, wheelZ: 1.5, wheelR: 0.45, spoiler: false, stripes: false, roofRails: true,
+      mass: 1900,
+      stats: { speed: 5, accel: 5, handling: 5, brake: 6, grip: 7, stability: 9 }
+    },
+    van: {
+      name: 'Delivery Van', desc: 'A big box on wheels. Slow to get going, hard to throw around.',
+      len: 5.2, w: 2.0, bodyH: 0.6, bodyY: 0.74, cabW: 1.88, cabH: 1.15, cabL: 4.1, cabZ: -0.5,
+      roofL: 3.9, roofZ: -0.52, wheelX: 1.0, wheelZ: 1.65, wheelR: 0.42, spoiler: false, stripes: false, boxy: true,
+      mass: 2300,
+      stats: { speed: 3, accel: 3, handling: 3, brake: 4, grip: 6, stability: 10 }
+    },
+    pickup: {
+      name: 'Pickup Truck', desc: 'Rugged with an open bed. Strong and steady, a bit lazy in corners.',
+      len: 5.2, w: 1.95, bodyH: 0.6, bodyY: 0.76, cabW: 1.7, cabH: 0.62, cabL: 1.75, cabZ: 0.55,
+      roofL: 1.4, roofZ: 0.5, wheelX: 0.98, wheelZ: 1.7, wheelR: 0.44, spoiler: false, stripes: false, bed: true,
+      mass: 2000,
+      stats: { speed: 5, accel: 4, handling: 4, brake: 5, grip: 6, stability: 8 }
+    },
+    wagon: {
+      name: 'Estate Wagon', desc: 'Long roof, long legs. A comfortable cruiser with a bit of pace.',
+      len: 4.9, w: 1.84, bodyH: 0.5, bodyY: 0.62, cabW: 1.6, cabH: 0.58, cabL: 3.2, cabZ: -0.5,
+      roofL: 3.0, roofZ: -0.52, wheelX: 0.92, wheelZ: 1.58, wheelR: 0.38, spoiler: false, stripes: false, roofRails: true,
+      mass: 1650,
+      stats: { speed: 7, accel: 6, handling: 6, brake: 7, grip: 7, stability: 7 }
+    },
+    mini: {
+      name: 'Micro Car', desc: 'Tiny and twitchy. Squeezes anywhere but spins out if you get greedy.',
+      len: 3.0, w: 1.6, bodyH: 0.55, bodyY: 0.64, cabW: 1.42, cabH: 0.72, cabL: 1.9, cabZ: -0.1,
+      roofL: 1.7, roofZ: -0.12, wheelX: 0.78, wheelZ: 0.95, wheelR: 0.33, spoiler: false, stripes: false,
+      mass: 850,
+      stats: { speed: 3, accel: 5, handling: 10, brake: 6, grip: 7, stability: 2 }
+    },
+    hot: {
+      name: 'Hot Hatch', desc: 'A hatch with a bite: stripes, a wing and plenty of attitude.',
+      len: 3.9, w: 1.8, bodyH: 0.54, bodyY: 0.64, cabW: 1.56, cabH: 0.6, cabL: 2.0, cabZ: -0.3,
+      roofL: 1.8, roofZ: -0.33, wheelX: 0.89, wheelZ: 1.2, wheelR: 0.37, spoiler: true, stripes: true,
+      mass: 1150,
+      stats: { speed: 7, accel: 8, handling: 8, brake: 7, grip: 7, stability: 4 }
+    }
+  });
+  const MODEL_KEYS = ['coupe', 'sedan', 'hatch', 'suv', 'van', 'pickup', 'wagon', 'mini', 'hot'];
 
   const wheelGeoCache = {};
   function wheelGeos(R) {
@@ -657,6 +708,21 @@
         [-0.6, 0.6].forEach(x => add(chassis, new THREE.BoxGeometry(0.06, 0.24, 0.1), darkMat, x, bodyTop + 0.13, -(M.len / 2 - 0.25)));
       }
 
+      if (M.roofRails) {
+        [-1, 1].forEach(sx => add(chassis, new THREE.BoxGeometry(0.06, 0.07, M.roofL - 0.3), darkMat, sx * (M.cabW / 2 - 0.12), roofTop + 0.07, M.roofZ));
+      }
+      if (M.boxy) {
+        add(chassis, new THREE.BoxGeometry(M.cabW - 0.04, 0.05, 0.05), darkMat, 0, bodyTop + 0.55, M.cabZ + M.cabL / 2 + 0.01);
+        add(chassis, new THREE.BoxGeometry(0.05, M.cabH - 0.2, 0.05), darkMat, 0, bodyTop + M.cabH / 2, M.cabZ - M.cabL / 2 - 0.01);
+      }
+      if (M.bed) {
+        const bz0 = M.cabZ - M.cabL / 2 - 0.05, bz1 = -M.len / 2 + 0.05, bl = bz0 - bz1, bzc = (bz0 + bz1) / 2;
+        add(chassis, new THREE.BoxGeometry(M.w - 0.1, 0.04, bl), darkMat, 0, bodyTop + 0.02, bzc);
+        [-1, 1].forEach(sx => add(chassis, new THREE.BoxGeometry(0.07, 0.38, bl), bodyMat, sx * (M.w / 2 - 0.06), bodyTop + 0.19, bzc));
+        add(chassis, new THREE.BoxGeometry(M.w - 0.1, 0.38, 0.07), bodyMat, 0, bodyTop + 0.19, bz1);
+        add(chassis, new THREE.BoxGeometry(M.w - 0.1, 0.38, 0.07), bodyMat, 0, bodyTop + 0.19, bz0);
+      }
+
       const lightsOn = opts.lightsOn !== false;
       const head = new THREE.MeshBasicMaterial({ color: lightsOn ? 0xfff6c8 : 0x4a4a42 });
       [-1, 1].forEach(sx => add(chassis, new THREE.BoxGeometry(0.4, 0.14, 0.08), head, sx * M.w * 0.325, M.bodyY + 0.06, M.len / 2 + 0.02));
@@ -709,7 +775,8 @@
 
   const parkedGroup = new THREE.Group();
   scene.add(parkedGroup);
-  const PARKED_COLORS = [0x8a9099, 0x3f5b7a, 0xb8b4aa, 0x7a3b3b, 0x2f3b36, 0xc9b27a, 0x5a6f8c, 0xe2e0da];
+  const PARKED_COLORS = [0x8a9099, 0x3f5b7a, 0xb8b4aa, 0x7a3b3b, 0x2f3b36, 0xc9b27a, 0x5a6f8c, 0xe2e0da,
+                         0x1d1f23, 0xf2f2f0, 0xa32a2a, 0x2d6a4f, 0xd9a21b, 0x1e4d8c];
 
   function addParked(model, color, x, z, h) {
     const m = CAR_MODELS[model];
@@ -742,15 +809,96 @@
       parkedGroup.remove(b.group); disposeCar(b.car); bodies.splice(i, 1);
     }
     for (let bi = 0; bi < N; bi++) for (let bj = 0; bj < N; bj++) parkedCars(bc(bi), bc(bj));
+    marketCars(bc(MARKET.bi), bc(MARKET.bj));
   }
 
-  const parks = new Set(['1,2', '2,1']);
+
+  const MARKET = { bi: 4, bj: 2 };
+  function marketCars(cx, cz) {
+    const lotZ = cz + B / 2 - 1 - 11, R_ = Math.random;
+    for (let k = -7; k <= 7; k++) {
+      for (const [row, hd] of [[-6.6, 0], [6.6, Math.PI]]) {
+        if (R_() > 0.4) continue;
+        addParked(MODEL_KEYS[Math.floor(R_() * MODEL_KEYS.length)],
+          PARKED_COLORS[Math.floor(R_() * PARKED_COLORS.length)],
+          cx + k * 2.4 + 1.2, lotZ + row, hd);
+      }
+    }
+  }
+  function buildSupermarket(cx, cz) {
+    const top = SW;
+    // parking lot asphalt (south part of block), building (north part)
+    const lotD = 22, lotW = B - 2;
+    const lotZ = cz + B / 2 - 1 - lotD / 2;
+    box(lotW, 0.05, lotD, cx, top + 0.03, lotZ, 0x3a3f47, false, true);
+    // painted stalls: two rows of angled-free perpendicular stalls
+    const lineMat = 0xe9e7df;
+    for (let k = -7; k <= 7; k++) {
+      const x = cx + k * 2.4;
+      box(0.12, 0.02, 4.6, x, top + 0.07, lotZ - 6.6, lineMat, false, true);
+      box(0.12, 0.02, 4.6, x, top + 0.07, lotZ + 6.6, lineMat, false, true);
+    }
+    box(lotW - 2, 0.02, 0.15, cx, top + 0.07, lotZ - 4.2, lineMat, false, true);
+    box(lotW - 2, 0.02, 0.15, cx, top + 0.07, lotZ + 4.2, lineMat, false, true);
+    // entrance/exit ramps (curb cut) on the south edge
+    for (const ox of [-12, 12]) box(5, 0.05, 1.6, cx + ox, top + 0.05, cz + B / 2 + 0.2, 0x3a3f47, false, true);
+
+    // store building
+    const bw = B - 6, bd = 13, bz = cz - B / 2 + 3 + bd / 2, bh = 7;
+    box(bw, bh, bd, cx, top + bh / 2, bz, 0xe8e4da);
+    box(bw + 0.6, 0.9, bd + 0.6, cx, top + bh + 0.1, bz, 0xc0392b);
+    // glass front facing the lot (south side)
+    box(bw - 6, 3.4, 0.2, cx, top + 2.0, bz + bd / 2 + 0.05, 0x5f8fb0);
+    // entrance canopy
+    box(9, 0.4, 4, cx, top + 4.2, bz + bd / 2 + 2, 0x9c2f24);
+    box(0.4, 4.2, 0.4, cx - 4, top + 2.1, bz + bd / 2 + 3.7, 0x6f7479);
+    box(0.4, 4.2, 0.4, cx + 4, top + 2.1, bz + bd / 2 + 3.7, 0x6f7479);
+    // roof units
+    box(3, 1.2, 2.4, cx - 9, top + bh + 1.1, bz, 0x9ea4aa);
+    box(3, 1.2, 2.4, cx + 8, top + bh + 1.1, bz - 1, 0x9ea4aa);
+    // "SUPERMARKET" sign
+    const cv = document.createElement('canvas'); cv.width = 512; cv.height = 96;
+    const g = cv.getContext('2d');
+    g.fillStyle = '#c0392b'; g.fillRect(0, 0, 512, 96);
+    g.fillStyle = '#fff'; g.font = 'bold 58px Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText('SUPERMARKET', 256, 50);
+    const tex = new THREE.CanvasTexture(cv);
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(16, 3), new THREE.MeshBasicMaterial({ map: tex }));
+    sign.position.set(cx, top + bh - 1.2, bz + bd / 2 + 0.35);
+    scene.add(sign);
+    addCollider(cx, bz, bw, bd);
+    addCollider(cx - 4, bz + bd / 2 + 3.7, 0.5, 0.5);
+    addCollider(cx + 4, bz + bd / 2 + 3.7, 0.5, 0.5);
+
+    // lamp posts in the lot
+    for (const lx of [-15, 0, 15]) {
+      box(0.25, 6, 0.25, cx + lx, top + 3, lotZ, 0x555b63);
+      box(1.4, 0.25, 0.5, cx + lx, top + 6.1, lotZ, 0xfff2c0, false, false);
+      addCollider(cx + lx, lotZ, 0.5, 0.5);
+    }
+    // shopping cart corrals
+    for (const ox of [-8, 9]) {
+      box(2.4, 1.0, 1.2, cx + ox, top + 0.5, lotZ - 1.5, 0x9aa1a8);
+      addCollider(cx + ox, lotZ - 1.5, 2.4, 1.2);
+    }
+    marketCars(cx, cz);
+    // hedges at the sides
+    const hedge = (hx, hz, w, d) => { box(w, 1.1, d, hx, top + 0.55, hz, 0x4e8a45); addCollider(hx, hz, w, d); };
+    for (const sx of [-1, 1]) hedge(cx + sx * (B / 2 - 0.6), cz, 1.0, B - 1);
+    hedge(cx, cz - B / 2 + 0.6, B - 1, 1.0);
+    hedge(cx - 17, cz + B / 2 - 0.6, 4.5, 1.0);
+    hedge(cx, cz + B / 2 - 0.6, 19, 1.0);
+    hedge(cx + 17, cz + B / 2 - 0.6, 4.5, 1.0);
+  }
+
+  const parks = new Set(['1,2', '2,1', '4,4', '1,5']);
   for (let bi = 0; bi < N; bi++) for (let bj = 0; bj < N; bj++) {
     const cx = bc(bi), cz = bc(bj);
     const isPark = parks.has(bi + ',' + bj);
     box(B, SW, B, cx, SW / 2, cz, isPark ? 0x86b36a : 0xcdc6b8, false, true);
-    if (isPark) buildPark(cx, cz); else buildBlock(cx, cz);
-    streetTrees(cx, cz, isPark);
+    const isMarket = bi === MARKET.bi && bj === MARKET.bj;
+    if (isPark) buildPark(cx, cz); else if (isMarket) buildSupermarket(cx, cz); else buildBlock(cx, cz);
+    streetTrees(cx, cz, isPark || isMarket);
     parkedCars(cx, cz);
   }
 
@@ -1390,7 +1538,7 @@
   const HB_DECEL = 11;
   const PB = { x: 0, z: 0, vx: 0, vz: 0, w: 0, invM: 1 / 1350, invI: 1 / 2400 };
 
-  const carColors = { coupe: 0xe8322b, sedan: 0x2f6fe0, hatch: 0xf2c230 };
+  const carColors = { coupe: 0xe8322b, sedan: 0x2f6fe0, hatch: 0xf2c230, suv: 0x2d6a4f, van: 0xf2f2f0, pickup: 0xa32a2a, wagon: 0x5a6f8c, mini: 0xd9a21b, hot: 0x1e4d8c };
   for (const k in carColors) { const v = settings.colors && settings.colors[k]; if (Number.isInteger(v) && v >= 0 && v <= 0xffffff) carColors[k] = v; }
   let playerKey = MODEL_KEYS.indexOf(settings.car) >= 0 ? settings.car : 'coupe';
 
@@ -1423,12 +1571,13 @@
   setPlayerCar(playerKey);
   let shake = 0;
 
-  const TRAFFIC_N = 10;
+  const TRAFFIC_N = 18;
   const TURN_RHO = 7;
   const TURN_START = 7.4;
   const traffic = [];
   const trafficColors = [0x8a9099, 0x3f5b7a, 0xb8b4aa, 0x7a3b3b, 0x2f3b36,
-                         0xc9b27a, 0x5a6f8c, 0xe2e0da, 0x4a7a5c, 0x9c6f8a];
+                         0xc9b27a, 0x5a6f8c, 0xe2e0da, 0x4a7a5c, 0x9c6f8a,
+                         0x1d1f23, 0xf2f2f0, 0xa32a2a, 0x2d6a4f, 0xd9a21b, 0x1e4d8c];
 
   function nearRc(v) {
     let best = 0, bd = 1e9;
@@ -1533,6 +1682,7 @@
     const K = 0.5523;
     t.bz = { x0: t.x, z0: t.z, x1: t.x + fx * dF * K, z1: t.z + fz * dF * K,
              x2: ex - gx * dR * K, z2: ez - gz * dR * K, x3: ex, z3: ez, u: 0 };
+    t.fromH = t.h;
     t.isTurning = true; t.targetHeading = ht; t.wantTurn = false; t.waitingToTurn = false;
   }
   function bzPoint(b, u, out) {
@@ -1573,6 +1723,9 @@
     const ix = rc(ni.i), iz = rc(ni.j);
     for (const o of traffic) {
       if (o === t) continue;
+      if (Math.sin(o.h) * Math.sin(t.h) + Math.cos(o.h) * Math.cos(t.h) > 0.7) continue;
+      if (o.isTurning && o.fromH !== undefined && Math.hypot(o.x - t.x, o.z - t.z) > 6 &&
+          Math.sin(o.fromH) * Math.sin(t.h) + Math.cos(o.fromH) * Math.cos(t.h) > 0.7) continue;
       if (Math.abs(o.x - ix) < R * 0.5 && Math.abs(o.z - iz) < R * 0.5) {
         const dO = Math.hypot(o.x - ix, o.z - iz);
         const dMe = Math.hypot(t.x - ix, t.z - iz);
@@ -1980,7 +2133,7 @@
             if (ni.f < 24) { t.nextKey = key; decideTurn(t, ni); }
           }
           if (ni.f > 2 && intersectionOccupied(t, ni)) t.yielding = true;
-          else if (ni.f > 8) t.yielding = false;
+          else t.yielding = false;
           if (t.wantTurn && ni.f <= TURN_START) {
             if (!intersectionOccupied(t, ni)) startArc(t, ni);
             else t.waitingToTurn = true;
@@ -2033,7 +2186,7 @@
         for (const o of traffic) {
           if (o === t) continue;
           const r = obstacleAhead(t, o.x, o.z, Math.sin(o.h) * o.speed, Math.cos(o.h) * o.speed);
-          if (r && (!ob || r.f < ob.f)) ob = r;
+          if (r && (!ob || r.f < ob.f)) { r.len = o.mesh.model.len; ob = r; }
         }
         for (const bd of bodies) {
           const r = bodyInLane(t, bd);
@@ -2046,8 +2199,8 @@
           target = Math.min(target, t.speed * 0.15);
           t.braking = true;
         } else {
-          const gap = ob.f - 3.4;
-          const desired = 2.2 + t.speed * 0.5;
+          const gap = ob.f - ((t.mesh.model.len + (ob.len || 4.3)) / 2 - 0.9);
+          const desired = 2.0 + t.speed * 0.5;
           if (gap < desired) {
             target = Math.max(0, (gap - desired) * 1.6 + t.speed * 0.5);
             t.braking = gap < desired * 0.6;
@@ -2067,7 +2220,9 @@
       if (!t.isTurning && ni0 && t.wantTurn && ni0.f < 24) target = Math.min(target, 5.4);
       target = Math.min(target, lightCap);
       if (lightCap < t.speed - 0.3) t.braking = true;
-      if (ob && !ob.oncoming && ob.d2 < 30 && !t.yielding) {
+      const queuing = !t.isTurning && ni0 && signalFor(t.h) !== 'green';
+      if (queuing) t.waitTime = 0;
+      if (ob && !ob.oncoming && ob.d2 < 30 && !t.yielding && !queuing) {
         const ahead = ob.body ? null : carAhead(t, ob);
         const stopped = ob.body ? true : (ahead === 'player' ? Math.hypot(car.vx, car.vz) < 0.5 : (ahead && ahead.speed < 0.5));
         if (stopped) {
