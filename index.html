@@ -753,6 +753,7 @@
         add(spin, WG.spoke, darkMat, 0, 0, 0);
         chassis.add(steer);
         out.wheels.push(spin);
+        (out.wheelPivots = out.wheelPivots || []).push(steer);
         if (sz > 0) out.steerPivots.push(steer);
       });
 
@@ -778,14 +779,15 @@
   const PARKED_COLORS = [0x8a9099, 0x3f5b7a, 0xb8b4aa, 0x7a3b3b, 0x2f3b36, 0xc9b27a, 0x5a6f8c, 0xe2e0da,
                          0x1d1f23, 0xf2f2f0, 0xa32a2a, 0x2d6a4f, 0xd9a21b, 0x1e4d8c];
 
-  function addParked(model, color, x, z, h) {
+  function addParked(model, color, x, z, h, y0) {
+    y0 = y0 || 0;
     const m = CAR_MODELS[model];
     const c = makeCar({ color, detailed: true, ghost: false, lightsOn: false, model });
-    c.group.position.set(x, 0, z); c.group.rotation.y = h;
+    c.group.position.set(x, y0, z); c.group.rotation.y = h;
     parkedGroup.add(c.group);
     const o = m.len / 2 - 0.9;
     bodies.push({
-      car: c, group: c.group, key: model, x, z, h, y: 0, vx: 0, vz: 0, w: 0, sleep: true,
+      car: c, group: c.group, key: model, x, z, h, y: y0, vx: 0, vz: 0, w: 0, sleep: true,
       m: m.mass, invM: 1 / m.mass, invI: 12 / (m.mass * (m.len * m.len + m.w * m.w)),
       r: m.w / 2, offs: [o, 0, -o], reach: m.len / 2 + 1
     });
@@ -799,7 +801,11 @@
       const model = MODEL_KEYS[Math.floor(R() * MODEL_KEYS.length)];
       const color = PARKED_COLORS[Math.floor(R() * PARKED_COLORS.length)];
       if (R() < 0.5) addParked(model, color, cx + side * off, cz + t, along);
-      else addParked(model, color, cx + t, cz + side * off, along + Math.PI / 2);
+      else {
+        // keep the street in front of the supermarket ramps free
+        if (cx === bc(MARKET.bi) && cz === bc(MARKET.bj) && side === 1 && LOT_LANES.some(l => Math.abs(cx + t - (cx + l)) < 6.5)) continue;
+        addParked(model, color, cx + t, cz + side * off, along + Math.PI / 2);
+      }
     }
   }
   function reshuffleParked() {
@@ -814,34 +820,57 @@
 
 
   const MARKET = { bi: 4, bj: 2 };
-  function marketCars(cx, cz) {
-    const lotZ = cz + B / 2 - 1 - 11, R_ = Math.random;
-    for (let k = -7; k <= 7; k++) {
-      for (const [row, hd] of [[-6.6, 0], [6.6, Math.PI]]) {
-        if (R_() > 0.4) continue;
-        addParked(MODEL_KEYS[Math.floor(R_() * MODEL_KEYS.length)],
-          PARKED_COLORS[Math.floor(R_() * PARKED_COLORS.length)],
-          cx + k * 2.4 + 1.2, lotZ + row, hd);
+  const RAMPS = [];                       // drivable curb ramps into the supermarket lot
+  const LOT_LANES = [-15, 15];            // x offsets of the entrance / exit lanes (kept free of parking)
+  const lotStalls = (function () {
+    const list = [];
+    for (let k = -7; k <= 6; k++) {
+      const xs = k * 2.4 + 1.2;
+      for (const row of [-6.6, 6.6]) {
+        if (LOT_LANES.some(l => Math.abs(xs - l) < 3.6)) continue;   // entrance / exit lanes
+        if (row < 0 && Math.abs(xs) < 6.5) continue;                 // in front of the shop door
+        list.push({ xs, row });
       }
     }
+    return list;
+  })();
+  function marketCars(cx, cz) {
+    const lotZ = cz + B / 2 - 1 - 11, R_ = Math.random;
+    for (const st of lotStalls) {
+      if (R_() > 0.4) continue;
+      addParked(MODEL_KEYS[Math.floor(R_() * MODEL_KEYS.length)],
+        PARKED_COLORS[Math.floor(R_() * PARKED_COLORS.length)],
+        cx + st.xs, lotZ + st.row, st.row < 0 ? 0 : Math.PI, SW);
+    }
+  }
+  function addRamp(x0, x1, z0, z1, h) {
+    // wedge rising from the road (z1, height 0) to the lot surface (z0, height h)
+    const v = [x0, 0, z1,  x1, 0, z1,  x1, h, z0,  x0, h, z0,  x0, 0, z0,  x1, 0, z0];
+    const idx = [0, 1, 2, 0, 2, 3,  4, 3, 2, 4, 2, 5,  0, 3, 4,  1, 5, 2];
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
+    g.setIndex(idx); g.computeVertexNormals();
+    const m = new THREE.Mesh(g, lam(0x3a3f47));
+    m.receiveShadow = true; scene.add(m);
+    RAMPS.push({ x0, x1, z0, z1 });
   }
   function buildSupermarket(cx, cz) {
     const top = SW;
     // parking lot asphalt (south part of block), building (north part)
     const lotD = 22, lotW = B - 2;
     const lotZ = cz + B / 2 - 1 - lotD / 2;
-    box(lotW, 0.05, lotD, cx, top + 0.03, lotZ, 0x3a3f47, false, true);
-    // painted stalls: two rows of angled-free perpendicular stalls
-    const lineMat = 0xe9e7df;
-    for (let k = -7; k <= 7; k++) {
-      const x = cx + k * 2.4;
-      box(0.12, 0.02, 4.6, x, top + 0.07, lotZ - 6.6, lineMat, false, true);
-      box(0.12, 0.02, 4.6, x, top + 0.07, lotZ + 6.6, lineMat, false, true);
+    box(lotW, 0.02, lotD, cx, top + 0.01, lotZ, 0x3a3f47, false, true);
+    // painted stall dividers (only where a stall actually exists)
+    const lineMat = 0xe9e7df, drawn = new Set();
+    for (const st of lotStalls) {
+      for (const lx of [st.xs - 1.2, st.xs + 1.2]) {
+        const key = lx.toFixed(2) + '|' + st.row;
+        if (drawn.has(key)) continue; drawn.add(key);
+        box(0.12, 0.01, 4.6, cx + lx, top + 0.025, lotZ + st.row, lineMat, false, true);
+      }
     }
-    box(lotW - 2, 0.02, 0.15, cx, top + 0.07, lotZ - 4.2, lineMat, false, true);
-    box(lotW - 2, 0.02, 0.15, cx, top + 0.07, lotZ + 4.2, lineMat, false, true);
-    // entrance/exit ramps (curb cut) on the south edge
-    for (const ox of [-12, 12]) box(5, 0.05, 1.6, cx + ox, top + 0.05, cz + B / 2 + 0.2, 0x3a3f47, false, true);
+    // entrance / exit ramps over the curb
+    for (const l of LOT_LANES) addRamp(cx + l - 2.5, cx + l + 2.5, cz + B / 2, cz + B / 2 + 2.4, SW);
 
     // store building
     const bw = B - 6, bd = 13, bz = cz - B / 2 + 3 + bd / 2, bh = 7;
@@ -849,10 +878,8 @@
     box(bw + 0.6, 0.9, bd + 0.6, cx, top + bh + 0.1, bz, 0xc0392b);
     // glass front facing the lot (south side)
     box(bw - 6, 3.4, 0.2, cx, top + 2.0, bz + bd / 2 + 0.05, 0x5f8fb0);
-    // entrance canopy
+    // entrance canopy (fixed to the wall, no posts)
     box(9, 0.4, 4, cx, top + 4.2, bz + bd / 2 + 2, 0x9c2f24);
-    box(0.4, 4.2, 0.4, cx - 4, top + 2.1, bz + bd / 2 + 3.7, 0x6f7479);
-    box(0.4, 4.2, 0.4, cx + 4, top + 2.1, bz + bd / 2 + 3.7, 0x6f7479);
     // roof units
     box(3, 1.2, 2.4, cx - 9, top + bh + 1.1, bz, 0x9ea4aa);
     box(3, 1.2, 2.4, cx + 8, top + bh + 1.1, bz - 1, 0x9ea4aa);
@@ -867,28 +894,15 @@
     sign.position.set(cx, top + bh - 1.2, bz + bd / 2 + 0.35);
     scene.add(sign);
     addCollider(cx, bz, bw, bd);
-    addCollider(cx - 4, bz + bd / 2 + 3.7, 0.5, 0.5);
-    addCollider(cx + 4, bz + bd / 2 + 3.7, 0.5, 0.5);
 
-    // lamp posts in the lot
-    for (const lx of [-15, 0, 15]) {
-      box(0.25, 6, 0.25, cx + lx, top + 3, lotZ, 0x555b63);
-      box(1.4, 0.25, 0.5, cx + lx, top + 6.1, lotZ, 0xfff2c0, false, false);
-      addCollider(cx + lx, lotZ, 0.5, 0.5);
-    }
-    // shopping cart corrals
-    for (const ox of [-8, 9]) {
-      box(2.4, 1.0, 1.2, cx + ox, top + 0.5, lotZ - 1.5, 0x9aa1a8);
-      addCollider(cx + ox, lotZ - 1.5, 2.4, 1.2);
-    }
     marketCars(cx, cz);
-    // hedges at the sides
+    // hedges around the lot, open at the two entrance / exit ramps
     const hedge = (hx, hz, w, d) => { box(w, 1.1, d, hx, top + 0.55, hz, 0x4e8a45); addCollider(hx, hz, w, d); };
     for (const sx of [-1, 1]) hedge(cx + sx * (B / 2 - 0.6), cz, 1.0, B - 1);
     hedge(cx, cz - B / 2 + 0.6, B - 1, 1.0);
-    hedge(cx - 17, cz + B / 2 - 0.6, 4.5, 1.0);
-    hedge(cx, cz + B / 2 - 0.6, 19, 1.0);
-    hedge(cx + 17, cz + B / 2 - 0.6, 4.5, 1.0);
+    hedge(cx, cz + B / 2 - 0.6, 24.4, 1.0);
+    hedge(cx - 18.2, cz + B / 2 - 0.6, 1.5, 1.0);
+    hedge(cx + 18.2, cz + B / 2 - 0.6, 1.5, 1.0);
   }
 
   const parks = new Set(['1,2', '2,1', '4,4', '1,5']);
@@ -2413,6 +2427,9 @@
   })();
 
   function groundHeight(x, z) {
+    for (const rp of RAMPS) {
+      if (x > rp.x0 && x < rp.x1 && z > rp.z0 && z < rp.z1) return SW * (1 - (z - rp.z0) / (rp.z1 - rp.z0));
+    }
     const u = (x + HALF - R) / P, v = (z + HALF - R) / P;
     if (u < 0 || v < 0) return 0;
     const iu = Math.floor(u), iv = Math.floor(v);
@@ -2742,8 +2759,41 @@
     stepWorld(dt);
     car.x = clamp(car.x, -WLIM, WLIM); car.z = clamp(car.z, -WLIM, WLIM);
 
-    car.y += (groundHeight(car.x, car.z) - car.y) * Math.min(1, dt * 14);
-
+    {
+      // each wheel rides on its own spring; the body takes the best-fit plane and every wheel
+      // then extends/compresses (suspension) so its tyre always touches the surface exactly
+      const M = CAR_MODELS[playerKey], wx = M.wheelX, wzR = M.wheelZ, wzF = M.wheelZ * 0.92, wr = M.wheelR;
+      const sf = Math.sin(car.h), cf = Math.cos(car.h);
+      // mesh order: front -x, front +x, rear -x, rear +x   (+x is the car's left)
+      const ox = [wzF, wzF, -wzR, -wzR], oz = [-wx, wx, -wx, wx];
+      const gAt = (a, b) => groundHeight(car.x + sf * a + cf * b, car.z + cf * a - sf * b);
+      const tg = [0, 0, 0, 0];
+      for (let i = 0; i < 4; i++) {
+        // sample the whole tyre footprint (front/back edge of the tyre and the body side)
+        const a = ox[i], b = oz[i], sd = b > 0 ? 1 : -1, bo = b + sd * 0.3;
+        tg[i] = Math.max(gAt(a, b), gAt(a + wr, b), gAt(a - wr, b),
+                         gAt(a, bo), gAt(a + wr * 0.7, bo), gAt(a - wr * 0.7, bo));
+      }
+      if (!car.wy || Math.hypot(car.x - (car.lxw || 0), car.z - (car.lzw || 0)) > 6) {
+        car.wy = tg.slice(); car.wv = [0, 0, 0, 0];
+      }
+      car.lxw = car.x; car.lzw = car.z;
+      const sdt = Math.min(dt, 0.033);
+      for (let i = 0; i < 4; i++) {
+        car.wv[i] += ((tg[i] - car.wy[i]) * 85 - car.wv[i] * 15) * sdt;
+        car.wy[i] += car.wv[i] * sdt;
+      }
+      const w = car.wy;
+      const fy = (w[0] + w[1]) / 2, ry = (w[2] + w[3]) / 2;
+      const ly = (w[1] + w[3]) / 2, rgy = (w[0] + w[2]) / 2;
+      const sP = (fy - ry) / (wzF + wzR), sR = (ly - rgy) / (2 * wx);
+      const yc = fy - sP * wzF;
+      car.y = yc;
+      car.slopeP = -Math.atan(sP);
+      car.slopeR = Math.atan(sR);
+      if (!car.wd) car.wd = [0, 0, 0, 0];
+      for (let i = 0; i < 4; i++) car.wd[i] = clamp(w[i] - (yc + sP * ox[i] + sR * oz[i]), -0.25, 0.25);
+    }
     const pT = clamp(-car.accelLong * 0.0035, -0.075, 0.075);
     const latAcc = vf2 * yaw - vl2 * 0.0;
     const rT = clamp(latAcc * 0.0030 * (1.4 - STAB * 0.09), -0.11, 0.11);
@@ -3013,8 +3063,9 @@
     const g = player.group;
     g.position.set(car.x, car.y, car.z);
     g.rotation.y = car.h;
-    player.chassis.rotation.x = car.pitch;
-    player.chassis.rotation.z = car.roll;
+    player.chassis.rotation.x = car.pitch + (car.slopeP || 0);
+    player.chassis.rotation.z = car.roll + (car.slopeR || 0);
+    if (car.wd && player.wheelPivots) { const wr0 = CAR_MODELS[playerKey].wheelR; for (let i = 0; i < 4; i++) player.wheelPivots[i].position.y = wr0 + car.wd[i]; }
     player.wheels.forEach(w => { w.rotation.x = car.spin; });
     player.steerPivots.forEach(p => { p.rotation.y = car.steer; });
     player.tailMat.color.setHex((car.braking || (held('down') && car.vf > 0.6)) ? 0xff2a2a : (car.reversing ? 0xf2f2f2 : 0x8a1212));
