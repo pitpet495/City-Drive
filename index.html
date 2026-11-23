@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>City Drive</title>
 <script>
-  try { if (JSON.parse(localStorage.getItem('citydrive.settings') || '{}').wheel === false) document.documentElement.classList.add('arrows'); } catch (e) {}
+  document.documentElement.classList.add('arrows');
+  try { var s = JSON.parse(localStorage.getItem('citydrive.settings') || '{}'); if (s.wheel === true && s.wheelSet === true) document.documentElement.classList.remove('arrows'); } catch (e) {}
 </script>
 <style>
   html, body {
@@ -82,6 +83,7 @@
     transform: translateY(10px) scale(.98); transition: transform .22s ease;
     touch-action: pan-y; overscroll-behavior: contain;
   }
+  .panel.wide { width: min(100%, 880px); }
   .overlay.open .panel { transform: none; }
   .menuTitle { text-align: center; margin: 0 0 14px; }
   .menuTitle h2 { margin: 0; font-size: 30px; letter-spacing: .08em; text-shadow: 0 3px 18px rgba(0, 0, 0, .5); }
@@ -119,21 +121,30 @@
   .back svg, .nav svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
   .back:active, .nav:active { background: #ffb000; color: #14202c; }
   .back:focus-visible, .nav:focus-visible { box-shadow: 0 0 0 3px #fff; }
+  .shopgrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr); gap: 18px; align-items: start; }
+  .shopcol { min-width: 0; }
   .stage {
     position: relative; border-radius: 18px; overflow: hidden;
     background: radial-gradient(ellipse at 50% 75%, #3d587a 0%, #1b2b3d 72%);
   }
-  #preview { position: relative; inset: auto; z-index: auto; display: block; width: 100%; height: clamp(150px, 26vh, 230px); touch-action: pan-y; }
+  #preview { position: relative; inset: auto; z-index: auto; display: block; width: 100%; height: clamp(140px, 24vh, 210px); touch-action: pan-y; }
   .nav { position: absolute; top: 50%; transform: translateY(-50%); }
   .nav.prev { left: 8px; }
   .nav.next { right: 8px; }
-  .cname { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; }
+  .cname { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; gap: 10px; }
   .cname strong { font-size: 20px; }
-  #carDots { display: flex; flex-wrap: wrap; gap: 6px; max-width: 164px; justify-content: flex-end; }
-  #carDots i { width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, .25); }
-  #carDots i.on { background: #ffb000; }
-  #carDesc { margin: 4px 0 12px; font-size: 14px; line-height: 1.35; color: rgba(255, 255, 255, .78); }
-  .swatches { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 24px; }
+  #carDots { display: flex; flex-wrap: wrap; gap: 5px; max-width: 120px; justify-content: flex-end; }
+  #carDots i { width: 7px; height: 7px; border-radius: 50%; background: rgba(255, 255, 255, .25); }
+  #carDots i.on { background: #ffb000; box-shadow: 0 0 0 2px rgba(255, 176, 0, .2); }
+  #carDesc { margin: 3px 0 10px; font-size: 13px; line-height: 1.3; color: rgba(255, 255, 255, .72);
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .swatches { display: flex; flex-wrap: wrap; gap: 9px; margin-bottom: 20px; }
+  .paintbar { display: flex; align-items: center; gap: 8px; margin: -8px 0 10px; }
+  .paintbar .snote { flex: 1; margin: 0; }
+  .paintacts { display: none; gap: 6px; flex: none; }
+  .paintbar.pending .paintacts { display: flex; }
+  .paintacts .ubuy { height: 30px; padding: 0 10px; color: #8be26a; border-color: rgba(120, 220, 90, .5); }
+  .paintacts .ubuy.ghost { color: rgba(255, 255, 255, .7); border-color: rgba(255, 255, 255, .25); }
   .sw { position: relative; width: 30px; height: 30px; padding: 0; border-radius: 50%; border: 2px solid rgba(255, 255, 255, .35); cursor: pointer; outline: none; }
   .sw .swp { position: absolute; left: 50%; bottom: -15px; transform: translateX(-50%);
     font-size: 9.5px; font-weight: 700; line-height: 1; color: #ffd36b; letter-spacing: .02em; pointer-events: none; }
@@ -142,12 +153,12 @@
   .sw:focus-visible { box-shadow: 0 0 0 3px #fff; }
   .sw.locked { opacity: .32; cursor: not-allowed; }
   .sw:disabled { pointer-events: none; }
-  .stat { display: grid; grid-template-columns: 96px 1fr 22px; align-items: center; gap: 10px; margin: 7px 0; font-size: 14px; }
+  .stat { display: grid; grid-template-columns: 86px 1fr 26px; align-items: center; gap: 9px; margin: 5px 0; font-size: 13px; }
   .bar { position: relative; height: 8px; border-radius: 4px; background: rgba(255, 255, 255, .14); overflow: hidden; }
   .bar i { position: absolute; left: 0; top: 0; display: block; height: 100%; width: 0; border-radius: 4px;
     background: linear-gradient(90deg, #ffb000, #ffd36b); transition: width .35s ease; }
-  .bar i.up { background: rgba(255, 255, 255, .42); }
-  .bar i.prev { display: none; background: repeating-linear-gradient(45deg, rgba(139, 226, 106, .95) 0 4px, rgba(139, 226, 106, .55) 4px 8px); }
+  .bar i.prev { display: none; background: repeating-linear-gradient(45deg, rgba(139, 226, 106, .98) 0 4px, rgba(139, 226, 106, .55) 4px 8px);
+    box-shadow: 0 0 6px rgba(139, 226, 106, .45); z-index: 1; }
   .stat b { text-align: right; font-variant-numeric: tabular-nums; }
 
   .toggles {
@@ -222,7 +233,6 @@
   .pill.on::after { transform: translateX(24px); }
   .pill:focus-visible { box-shadow: 0 0 0 3px #fff; }
 
-  /* HP bar (replaces the old 3-crash dots) */
   #hp { display: inline-flex; align-items: center; gap: 7px; padding-left: 12px; margin-left: 4px;
     border-left: 1px solid rgba(255, 255, 255, .25); }
   #hp .hbar { width: 78px; height: 10px; border-radius: 5px; background: rgba(255, 255, 255, .16); overflow: hidden; }
@@ -234,7 +244,6 @@
   #hurt { position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: 0;
     background: radial-gradient(ellipse at center, transparent 44%, rgba(255, 30, 20, .55) 100%); }
 
-  /* Wanted stars */
   #wanted { position: fixed; z-index: 2; top: max(14px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
     display: flex; gap: 4px; padding: 8px 12px; border-radius: 14px;
     background: rgba(14, 26, 40, .62); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); pointer-events: none; }
@@ -297,6 +306,9 @@
   .mrow .mi { flex: 1; min-width: 0; }
   .mrow .mi b { display: block; font-size: 15px; }
   .mrow .mi span { font-size: 12.5px; color: rgba(255, 255, 255, .65); line-height: 1.3; }
+  .mrow .mi .mprog { display: block; height: 4px; border-radius: 2px; margin-top: 5px; overflow: hidden; background: rgba(255, 255, 255, .13); }
+  .mrow .mi .mprog i { display: block; height: 100%; border-radius: 2px; background: linear-gradient(90deg, #ffb000, #ffd36b); }
+  .mrow.done .mi .mprog i { background: #8be26a; }
   .mrow.done { opacity: .5; }
   .mrow .tier { flex: none; font-size: 10.5px; letter-spacing: .08em; padding: 3px 8px; border-radius: 8px;
     background: rgba(255, 176, 0, .18); color: #ffd36b; text-transform: uppercase; }
@@ -304,16 +316,31 @@
   .mrow .done-ic { flex: none; color: #8be26a; }
   .mrow .done-ic svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
 
-  .uprow { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 10px; margin: 9px 0; font-size: 14px; }
-  .uprow .ul { display: flex; flex-direction: column; gap: 2px; }
-  .uprow .ul small { font-size: 11px; color: rgba(255, 255, 255, .55); }
-  .pips { display: flex; gap: 4px; }
-  .pips i { width: 17px; height: 7px; border-radius: 4px; background: rgba(255, 255, 255, .18); }
+  .uprow { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; margin: 6px 0;
+    padding: 6px 8px; border-radius: 12px; background: rgba(255, 255, 255, .045); border: 1px solid rgba(255, 255, 255, .09);
+    font-size: 13px; }
+  .uprow.pending { background: rgba(139, 226, 106, .08); border-color: rgba(139, 226, 106, .3); }
+  .uprow .ul { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .uprow .ul b { font-size: 13.5px; }
+  .uprow .ul small { font-size: 10.5px; color: rgba(255, 255, 255, .55); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .upctl { display: flex; align-items: center; gap: 5px; }
+  .ustep { width: 24px; height: 24px; padding: 0; border-radius: 8px; cursor: pointer; outline: none;
+    border: 1px solid rgba(255, 255, 255, .28); background: rgba(255, 255, 255, .1); color: #fff;
+    font: inherit; font-size: 17px; font-weight: 700; line-height: 1; display: grid; place-items: center; }
+  .ustep:active { background: #ffb000; color: #14202c; }
+  .ustep:disabled { opacity: .28; cursor: default; }
+  .ustep:focus-visible { box-shadow: 0 0 0 2px #fff; }
+  .pips { display: flex; gap: 3px; }
+  .pips i { width: 13px; height: 7px; border-radius: 4px; background: rgba(255, 255, 255, .18); }
   .pips i.on { background: #ffb000; }
-  .ubuy { padding: 0 12px; height: 32px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .3);
-    background: rgba(255, 255, 255, .1); color: #ffd36b; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .pips i.next { background: repeating-linear-gradient(45deg, #8be26a 0 3px, rgba(139, 226, 106, .5) 3px 6px); }
+  .ubuy { padding: 0 10px; height: 32px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .3);
+    background: rgba(255, 255, 255, .1); color: #ffd36b; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer;
+    white-space: nowrap; }
   .ubuy:disabled { opacity: .4; cursor: default; }
   .ubuy.max { color: rgba(255, 255, 255, .5); }
+  .ubuy.apply { color: #14202c; background: #8be26a; border-color: #b8f29a; }
+  .ubuy.apply:disabled { background: rgba(139, 226, 106, .25); color: rgba(255, 255, 255, .55); border-color: rgba(139, 226, 106, .3); }
 
   .pricebtn { margin-top: 12px; }
   .sumrow { display: flex; justify-content: space-between; gap: 10px; padding: 7px 2px; font-size: 15px;
@@ -327,9 +354,21 @@
   body.at-menu .toggles, body.at-menu #hud, body.at-menu #wanted, body.at-menu #coinhud,
   body.at-menu #bustui, body.at-menu #driftHud, body.at-menu #hurt, body.at-menu #flash, body.at-menu .pad { display: none; }
 
+  @media (max-width: 760px) {
+    .shopgrid { grid-template-columns: 1fr; gap: 10px; }
+    .panel.wide { width: min(100%, 460px); }
+  }
   @media (max-width: 640px) {
     .toggles { width: 102px; flex-wrap: wrap; justify-content: flex-end; }
     #coinhud { top: calc(max(14px, env(safe-area-inset-top)) + 120px); }
+  }
+  @media (max-height: 560px) {
+    #preview { height: clamp(110px, 36vh, 170px); }
+    .uprow { margin: 4px 0; padding: 4px 7px; }
+    .uprow .ul small { display: none; }
+    #carDesc { -webkit-line-clamp: 1; margin-bottom: 7px; }
+    .swatches { gap: 7px; margin-bottom: 17px; }
+    .paintbar { margin-top: -6px; }
   }
   @media (max-height: 520px) {
     .panel { padding: 12px; border-radius: 20px; }
@@ -594,11 +633,8 @@
         <button class="back" id="btnMisBack" type="button" aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-8 7 8 7"/></svg></button>
         <h2>Missions</h2>
       </div>
-      <div class="shead" style="margin-top:4px">Daily Quests<span id="dqTimer" style="margin-left:auto;font-weight:400;letter-spacing:0;text-transform:none;color:rgba(255,255,255,.6);font-size:11.5px"></span></div>
-      <p class="snote" style="margin-bottom:6px">3 quests, reset daily at midnight. Progress carries across runs.</p>
-      <div id="dqList"></div>
-      <div class="shead">Missions</div>
-      <p class="snote" style="margin-bottom:8px">Complete goals during a run to earn coins instantly. Higher tiers pay more.</p>
+      <div class="shead" style="margin-top:4px">Daily missions<span id="misTimer" style="margin-left:auto;font-weight:400;letter-spacing:0;text-transform:none;color:rgba(255,255,255,.6);font-size:11.5px"></span></div>
+      <p class="snote" style="margin-bottom:8px">5 missions, reset daily at midnight. Progress carries across runs and rewards are paid instantly.</p>
       <div id="misList"></div>
     </section>
 
@@ -608,20 +644,34 @@
         <h2>Shop</h2>
         <div class="coinline"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#coinIcon"/></svg><span id="garCoins">0</span></div>
       </div>
-      <div class="stage">
-        <canvas id="preview"></canvas>
-        <button class="nav prev" id="carPrev" type="button" aria-label="Previous car"><svg viewBox="0 0 24 24"><path d="M15 5l-8 7 8 7"/></svg></button>
-        <button class="nav next" id="carNext" type="button" aria-label="Next car"><svg viewBox="0 0 24 24"><path d="M9 5l8 7-8 7"/></svg></button>
+      <div class="shopgrid">
+        <div class="shopcol">
+          <div class="stage">
+            <canvas id="preview"></canvas>
+            <button class="nav prev" id="carPrev" type="button" aria-label="Previous car"><svg viewBox="0 0 24 24"><path d="M15 5l-8 7 8 7"/></svg></button>
+            <button class="nav next" id="carNext" type="button" aria-label="Next car"><svg viewBox="0 0 24 24"><path d="M9 5l8 7-8 7"/></svg></button>
+          </div>
+          <div class="cname"><strong id="carName"></strong><span id="carDots"></span></div>
+          <p id="carDesc"></p>
+          <button class="mbtn primary pricebtn" id="btnCarAction" type="button"><span id="carActionLabel">Select</span><em id="carActionPrice"></em></button>
+          <div class="shead" style="margin-top:10px">Paint</div>
+          <div class="swatches" id="swatches" role="radiogroup" aria-label="Car colour"></div>
+          <div class="paintbar" id="paintBar">
+            <p class="snote" id="paintNote">Factory paint is free. New colours cost 75 coins once per car.</p>
+            <div class="paintacts">
+              <button class="ubuy" id="btnPaintConfirm" type="button">Confirm</button>
+              <button class="ubuy ghost" id="btnPaintCancel" type="button">Cancel</button>
+            </div>
+          </div>
+        </div>
+        <div class="shopcol">
+          <div class="shead" style="margin-top:0">Stats</div>
+          <div class="stats" id="stats"></div>
+          <div class="shead" id="upgHead">Upgrades</div>
+          <p class="snote" style="margin:2px 0 2px">Pick levels with <b>−</b> / <b>+</b>, preview the green gain, then confirm. Costs rise with each level.</p>
+          <div id="upgBox"></div>
+        </div>
       </div>
-      <div class="cname"><strong id="carName"></strong><span id="carDots"></span></div>
-      <p id="carDesc"></p>
-      <div class="swatches" id="swatches" role="radiogroup" aria-label="Car colour"></div>
-      <p class="snote" id="paintNote" style="margin:-10px 0 12px">A new colour costs 40 coins once per car. Factory and current colours are free.</p>
-      <div class="stats" id="stats"></div>
-      <button class="mbtn primary pricebtn" id="btnCarAction" type="button"><span id="carActionLabel">Select</span><em id="carActionPrice"></em></button>
-      <div class="shead" id="upgHead">Upgrades</div>
-      <p class="snote" style="margin:4px 0 2px">Upgrades are much cheaper than buying a better model, and they improve the car you already own. Levels 1-3 per part.</p>
-      <div id="upgBox"></div>
     </section>
 
     <section class="view" id="settingsView">
@@ -633,9 +683,11 @@
       <div class="srow"><label for="volSfx">Sound effects</label><input type="range" id="volSfx" min="0" max="100" step="1" value="100"><output id="volSfxV">100</output><button class="pill on" id="tglSfx" type="button" role="switch" aria-checked="true" aria-label="Sound effects"></button></div>
       <div class="srow"><label>Shadows</label><button class="pill on" id="pillShadows" type="button" role="switch" aria-checked="true" aria-label="Shadows"></button></div>
       <div class="srow"><label>Skid marks</label><button class="pill on" id="pillMarks" type="button" role="switch" aria-checked="true" aria-label="Skid marks"></button></div>
-      <div class="srow"><label>Steering</label><div class="seg" role="group" aria-label="Steering controls"><button type="button" id="segWheel">Wheel</button><button type="button" id="segArrows">Arrows</button></div></div>
+      <div class="srow"><label>Steering</label><div class="seg" role="group" aria-label="Steering controls"><button type="button" id="segArrows">Arrows</button><button type="button" id="segWheel">Wheel</button></div></div>
       <div class="srow"><label>Chase camera</label><button class="pill on" id="pillChase" type="button" role="switch" aria-checked="true" aria-label="Chase camera"></button></div>
       <div class="srow"><label>Camera shake</label><button class="pill on" id="pillShake" type="button" role="switch" aria-checked="true" aria-label="Camera shake"></button></div>
+      <div class="srow"><label>Fullscreen</label><button class="pill on" id="pillFullscreen" type="button" role="switch" aria-checked="true" aria-label="Fullscreen"></button></div>
+      <p class="snote">Fullscreen turns on automatically when you start or first tap the game. Use this switch to turn it off or back on.</p>
       <p class="snote">Drag on the game to look around the car, pinch or scroll to zoom, double-click to reset the view. Drag and orbit work in the Chase view.</p>
     </section>
   </div>
@@ -709,8 +761,8 @@
   const wrapAngle = a => Math.atan2(Math.sin(a), Math.cos(a));
 
   const settings = (() => {
-    const def = { music: 100, sfx: 100, shadows: true, marks: true, shake: true, wheel: true, chase: true, musicOn: true, sfxOn: true, car: 'metro', colors: {},
-                  coins: 0, owned: ['metro'], upg: {}, missions: {}, paint: {}, cam: 0, daily: null };
+    const def = { music: 100, sfx: 100, shadows: true, marks: true, shake: true, wheel: false, wheelSet: false, chase: true, musicOn: true, sfxOn: true, fullscreen: true,
+                  car: 'metro', colors: {}, coins: 0, owned: ['metro'], upg: {}, missions: {}, paint: {}, cam: 0, daily: null };
     try { return Object.assign(def, JSON.parse(localStorage.getItem('citydrive.settings') || '{}')); }
     catch (_) { return def; }
   })();
@@ -722,6 +774,7 @@
   if (!settings.missions || typeof settings.missions !== 'object') settings.missions = {};
   if (!settings.paint || typeof settings.paint !== 'object') settings.paint = {};
   if (!Number.isFinite(settings.coins)) settings.coins = 0;
+  if (!settings.wheelSet && settings.wheel) settings.wheel = false;
 
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
@@ -1060,7 +1113,7 @@
       tier: 0, style: 'trail',
       name: 'Trail SUV',
       desc: 'A compact crossover with a high stance, big arches and room for everyone. Stable and forgiving.',
-      price: 850,
+      price: 1400,
       len: 4.56, w: 1.94, bodyH: 0.62, bodyY: 0.78,
       cabW: 1.80, cabH: 0.67, cabL: 2.60, cabZ: -0.35,
       roofL: 2.00, roofZ: -0.44, roofY: 1.76, windRake: 0.34, rearRake: 0.12,
@@ -1073,7 +1126,7 @@
       tier: 1, style: 'executive',
       name: 'Executive GT',
       desc: 'A sharp four-door sports sedan. Quiet at a cruise, quick when you ask, and beautifully planted.',
-      price: 1800,
+      price: 3600,
       len: 4.80, w: 1.90, bodyH: 0.58, bodyY: 0.66,
       cabW: 1.64, cabH: 0.40, cabL: 2.25, cabZ: -0.20,
       roofL: 1.75, roofZ: -0.28, roofY: 1.35, windRake: 0.58, rearRake: 0.48,
@@ -1086,27 +1139,92 @@
       tier: 1, style: 'rally',
       name: 'Rally X',
       desc: 'A rally-bred coupe with long-travel suspension, chunky tires and a big wing. Built to launch.',
-      price: 3200,
+      price: 6800,
       len: 4.06, w: 1.88, bodyH: 0.54, bodyY: 0.70,
       cabW: 1.60, cabH: 0.45, cabL: 2.08, cabZ: -0.15,
       roofL: 1.55, roofZ: -0.22, roofY: 1.42, windRake: 0.40, rearRake: 0.34,
       wheelX: 0.86, wheelZ: 1.32, wheelR: 0.40,
       mass: 1280, metalness: 0.20, roughness: 0.44, taper: 0.06, accent: 0x2f6fe0,
       profile: [[-2.03,.42],[-2.03,.86],[-1.96,.92],[-1.58,.94],[-0.50,.95],[0.45,.95],[0.95,.92],[1.42,.86],[1.78,.78],[1.98,.67],[2.03,.56],[2.03,.42]],
-      stats: { speed: 13, accel: 14, handling: 12, brake: 11, grip: 12, stability: 10 }
+      stats: { speed: 13, accel: 14, handling: 12, brake: 12, grip: 12, stability: 12 }
+    },
+    vibe: {
+      tier: 1, style: 'vibe',
+      name: 'Vibe Hotback',
+      desc: 'A compact hot hatch with a black roof, wide arches and a big wing. Cheap thrills, huge grip.',
+      price: 2400,
+      len: 3.95, w: 1.82, bodyH: 0.56, bodyY: 0.66,
+      cabW: 1.58, cabH: 0.58, cabL: 2.10, cabZ: -0.24,
+      roofL: 1.72, roofZ: -0.30, roofY: 1.46, windRake: 0.42, rearRake: 0.30,
+      wheelX: 0.88, wheelZ: 1.24, wheelR: 0.36,
+      mass: 1220, metalness: 0.35, roughness: 0.38, taper: 0.05, accent: 0xf25c2a,
+      profile: [[-1.98,.36],[-1.98,.82],[-1.91,.88],[-1.55,.90],[-0.45,.92],[0.35,.92],[0.85,.89],[1.28,.84],[1.66,.75],[1.88,.64],[1.98,.52],[1.98,.36]],
+      stats: { speed: 9, accel: 10, handling: 10, brake: 9, grip: 10, stability: 9 }
+    },
+    ranger: {
+      tier: 1, style: 'ranger',
+      name: 'Ranger XT',
+      desc: 'A rugged two-tone 4x4 with a snorkel, roof lights and a spare wheel. Shrugs off kerbs and potholes.',
+      price: 5000,
+      len: 4.75, w: 1.98, bodyH: 0.66, bodyY: 0.82,
+      cabW: 1.82, cabH: 0.70, cabL: 2.70, cabZ: -0.32,
+      roofL: 2.35, roofZ: -0.40, roofY: 1.86, windRake: 0.32, rearRake: 0.10,
+      wheelX: 0.93, wheelZ: 1.55, wheelR: 0.45,
+      mass: 1950, metalness: 0.25, roughness: 0.55, taper: 0.02, accent: 0xc56b2e,
+      profile: [[-2.38,.48],[-2.38,1.02],[-2.30,1.10],[-1.95,1.13],[-0.40,1.14],[0.55,1.12],[1.10,1.08],[1.62,1.02],[2.05,.92],[2.28,.82],[2.38,.70],[2.38,.48]],
+      stats: { speed: 12, accel: 12, handling: 11, brake: 11, grip: 11, stability: 11 }
+    },
+    comet: {
+      tier: 2, style: 'comet',
+      name: 'Comet RS',
+      desc: 'A low, wide sports coupe with pop-up-style lights, side intakes and a ducktail. Balanced and fast.',
+      price: 9000,
+      len: 4.50, w: 1.94, bodyH: 0.48, bodyY: 0.62,
+      cabW: 1.60, cabH: 0.38, cabL: 1.95, cabZ: -0.05,
+      roofL: 1.50, roofZ: -0.14, roofY: 1.22, windRake: 0.62, rearRake: 0.48,
+      wheelX: 0.94, wheelZ: 1.44, wheelR: 0.37,
+      mass: 1320, metalness: 0.60, roughness: 0.26, taper: 0.12, accent: 0x37d0d8,
+      profile: [[-2.25,.30],[-2.25,.70],[-2.16,.78],[-1.82,.84],[-1.30,.86],[-0.65,.83],[0.10,.79],[0.78,.73],[1.38,.64],[1.90,.54],[2.18,.46],[2.25,.38],[2.25,.30]],
+      stats: { speed: 14, accel: 14, handling: 13, brake: 12, grip: 13, stability: 13 }
+    },
+    falcon: {
+      tier: 2, style: 'falcon',
+      name: 'Falcon GT',
+      desc: 'A long-legged grand tourer. Chrome details, a deep grille and effortless pace. Eats motorways.',
+      price: 11500,
+      len: 4.85, w: 1.96, bodyH: 0.50, bodyY: 0.62,
+      cabW: 1.64, cabH: 0.45, cabL: 2.20, cabZ: -0.20,
+      roofL: 1.80, roofZ: -0.26, roofY: 1.32, windRake: 0.56, rearRake: 0.40,
+      wheelX: 0.95, wheelZ: 1.58, wheelR: 0.39,
+      mass: 1520, metalness: 0.58, roughness: 0.30, taper: 0.11, accent: 0xe0b65a,
+      profile: [[-2.43,.34],[-2.43,.76],[-2.35,.85],[-2.02,.88],[-1.45,.90],[-0.25,.92],[0.62,.92],[1.22,.89],[1.78,.83],[2.18,.74],[2.38,.62],[2.43,.52],[2.43,.34]],
+      stats: { speed: 15, accel: 15, handling: 13, brake: 13, grip: 13, stability: 13 }
+    },
+    titan: {
+      tier: 2, style: 'titan',
+      name: 'Titan V8',
+      desc: 'A widebody muscle car with a hood scoop, racing stripes and side pipes. All torque, all attitude.',
+      price: 14500,
+      len: 4.75, w: 2.00, bodyH: 0.54, bodyY: 0.64,
+      cabW: 1.66, cabH: 0.48, cabL: 2.05, cabZ: -0.18,
+      roofL: 1.70, roofZ: -0.24, roofY: 1.36, windRake: 0.58, rearRake: 0.46,
+      wheelX: 0.97, wheelZ: 1.55, wheelR: 0.42,
+      mass: 1740, metalness: 0.30, roughness: 0.40, taper: 0.08, accent: 0xffb000,
+      profile: [[-2.38,.36],[-2.38,.82],[-2.30,.89],[-1.98,.92],[-0.60,.94],[0.50,.94],[1.05,.91],[1.55,.86],[1.98,.78],[2.26,.68],[2.38,.56],[2.38,.36]],
+      stats: { speed: 17, accel: 16, handling: 14, brake: 14, grip: 14, stability: 14 }
     },
     apex: {
       tier: 2, style: 'apex',
       name: 'Apex One',
       desc: 'The city hypercar. Carbon aero, huge power and razor-sharp response. Nothing comes close.',
-      price: 5600,
+      price: 19000,
       len: 4.56, w: 2.00, bodyH: 0.48, bodyY: 0.60,
       cabW: 1.56, cabH: 0.34, cabL: 1.82, cabZ: -0.05,
       roofL: 1.20, roofZ: -0.14, roofY: 1.18, windRake: 0.64, rearRake: 0.52,
       wheelX: 0.92, wheelZ: 1.48, wheelR: 0.36,
       mass: 1180, metalness: 0.65, roughness: 0.22, taper: 0.14, accent: 0xff5a1f,
       profile: [[-2.28,.32],[-2.28,.74],[-2.20,.82],[-1.88,.87],[-1.40,.88],[-0.72,.84],[0.05,.80],[0.72,.75],[1.32,.66],[1.86,.56],[2.16,.48],[2.28,.40],[2.28,.32]],
-      stats: { speed: 17, accel: 16, handling: 13, brake: 13, grip: 13, stability: 11 }
+      stats: { speed: 18, accel: 17, handling: 15, brake: 15, grip: 15, stability: 15 }
     },
     coupe: {
       tier: 0,
@@ -1264,11 +1382,11 @@
     }
   };
   const MODEL_KEYS = ['coupe', 'sedan', 'hatch', 'suv', 'van', 'pickup', 'wagon', 'mini', 'hot'];
-  const PLAYER_KEYS = ['metro', 'trail', 'executive', 'rallyx', 'apex'];
+  const PLAYER_KEYS = ['metro', 'trail', 'vibe', 'executive', 'ranger', 'rallyx', 'comet', 'falcon', 'titan', 'apex'];
   const OLD_CAR_MAP = {
-    coupe: 'metro', hatch: 'metro', mini: 'metro', sedan: 'executive', wagon: 'executive',
-    hot: 'executive', muscle: 'executive', gt: 'executive', rally: 'rallyx', suv: 'trail',
-    van: 'trail', pickup: 'trail', sport: 'apex', track: 'apex', hyper: 'apex', interceptor: 'apex'
+    coupe: 'comet', hatch: 'metro', mini: 'metro', sedan: 'executive', wagon: 'executive',
+    hot: 'vibe', muscle: 'titan', gt: 'falcon', rally: 'rallyx', suv: 'trail',
+    van: 'trail', pickup: 'ranger', sport: 'apex', track: 'apex', hyper: 'apex', interceptor: 'apex'
   };
   (function migrateCars() {
     const owned = [];
@@ -1417,15 +1535,18 @@
 
     [1, -1].forEach(sx => {
       [M.wheelZ, -M.wheelZ].forEach(wz => {
-        const flareMat = (style === 'trail' || style === 'rally') ? trimMat : bodyMat;
+        const flareMat = (style === 'trail' || style === 'rally' || style === 'ranger' || style === 'vibe' || style === 'titan') ? trimMat : bodyMat;
         const flare = add(chassis, new THREE.TorusGeometry(M.wheelR + 0.085, style === 'apex' ? 0.035 : 0.045, 7, 18, Math.PI), flareMat, sx * (M.w / 2 - 0.015), M.wheelR, wz);
         flare.rotation.y = Math.PI / 2;
       });
     });
 
-    const wheelWidth = style === 'apex' ? 0.34 : style === 'rally' ? 0.32 : style === 'trail' ? 0.30 : 0.28;
-    const rimRadius = M.wheelR * (style === 'metro' ? 0.54 : style === 'trail' ? 0.64 : style === 'apex' ? 0.72 : 0.67);
-    const spokeMat = style === 'rally' ? new THREE.MeshStandardMaterial({ color: 0xf0f2f4, metalness: 0.5, roughness: 0.3 }) : style === 'apex' ? carbonMat : chromeMat;
+    const wheelWidth = style === 'apex' ? 0.34 : style === 'rally' || style === 'ranger' || style === 'titan' ? 0.32
+      : style === 'trail' || style === 'vibe' || style === 'comet' ? 0.30 : 0.28;
+    const rimRadius = M.wheelR * (style === 'metro' ? 0.54 : style === 'trail' ? 0.64 : style === 'apex' ? 0.72
+      : style === 'ranger' ? 0.58 : style === 'vibe' ? 0.68 : style === 'comet' ? 0.70 : style === 'titan' ? 0.64 : 0.67);
+    const spokeMat = style === 'rally' ? new THREE.MeshStandardMaterial({ color: 0xf0f2f4, metalness: 0.5, roughness: 0.3 })
+      : style === 'apex' || style === 'comet' ? carbonMat : chromeMat;
     const tyreMat = lam(0x141619);
     function makeWheel(sx, wz, front) {
       const steer = new THREE.Group();
@@ -1438,12 +1559,13 @@
       rim.rotation.z = Math.PI / 2;
       const hub = add(spin, new THREE.CylinderGeometry(rimRadius * 0.18, rimRadius * 0.18, wheelWidth * 1.04, 12), trimMat, 0, 0, 0);
       hub.rotation.z = Math.PI / 2;
-      const lip = add(spin, new THREE.TorusGeometry(rimRadius * 1.02, 0.012, 6, 24), style === 'apex' ? accentMat : chromeMat, 0, 0, 0);
+      const lip = add(spin, new THREE.TorusGeometry(rimRadius * 1.02, 0.012, 6, 24), style === 'apex' || style === 'vibe' || style === 'titan' ? accentMat : chromeMat, 0, 0, 0);
       lip.rotation.y = Math.PI / 2;
       const disc = add(steer, new THREE.CylinderGeometry(M.wheelR * 0.58, M.wheelR * 0.58, 0.03, 18), chromeMat, 0, 0, 0);
       disc.rotation.z = Math.PI / 2;
       box(steer, 0.045, 0.12, 0.08, accentMat, sx * 0.02, M.wheelR * 0.12, -M.wheelR * 0.3);
-      const spokes = style === 'metro' ? 0 : style === 'trail' ? 6 : style === 'executive' ? 10 : style === 'rally' ? 6 : 12;
+      const spokes = style === 'metro' ? 0 : style === 'trail' ? 6 : style === 'executive' ? 10 : style === 'rally' ? 6
+        : style === 'vibe' ? 5 : style === 'ranger' ? 6 : style === 'comet' ? 10 : style === 'falcon' ? 12 : style === 'titan' ? 5 : 12;
       for (let i = 0; i < spokes; i++) {
         const sp = add(spin, new THREE.BoxGeometry(0.036, rimRadius * 1.66, style === 'apex' ? 0.045 : 0.075), spokeMat, 0, 0, 0);
         sp.rotation.x = (Math.PI * 2 / spokes) * i + (style === 'apex' ? 0.12 : 0);
@@ -1499,21 +1621,26 @@
       const x = side * (M.cabW / 2 - 0.015);
       beam(chassis, x, cabFront - 0.02, bodyTop + 0.05, roofFront + 0.02, roofTop - 0.05, 0.05, cabinTrimMat);
       beam(chassis, x, cabRear + 0.02, bodyTop + 0.05, roofRear - 0.02, roofTop - 0.05, 0.055, cabinTrimMat);
-      box(chassis, 0.055, wy1 - wy0 + 0.03, 0.07, style === 'executive' ? chromeMat : cabinTrimMat, x, (wy0 + wy1) / 2, M.cabZ + M.cabL * 0.06);
-      box(chassis, 0.018, 0.028, M.cabL * 0.92, style === 'executive' ? chromeMat : cabinTrimMat, side * (M.cabW / 2 + 0.002), bodyTop + 0.045, M.cabZ);
+      box(chassis, 0.055, wy1 - wy0 + 0.03, 0.07, style === 'executive' || style === 'falcon' ? chromeMat : cabinTrimMat, x, (wy0 + wy1) / 2, M.cabZ + M.cabL * 0.06);
+      box(chassis, 0.018, 0.028, M.cabL * 0.92, style === 'executive' || style === 'falcon' ? chromeMat : cabinTrimMat, side * (M.cabW / 2 + 0.002), bodyTop + 0.045, M.cabZ);
       cabinHide.push(box(chassis, 0.04, 0.04, roofFront - roofRear, bodyMat, side * (M.cabW / 2 - 0.02), roofTop + 0.02, (roofFront + roofRear) / 2));
       const mir = box(chassis, 0.17, 0.085, 0.055, bodyMat, side * (M.cabW / 2 + 0.11), bodyTop + 0.15, cabFront - 0.1);
       mir.rotation.y = side * 0.18;
       box(chassis, 0.13, 0.055, 0.014, glassMat, side * (M.cabW / 2 + 0.105), bodyTop + 0.15, cabFront - 0.132);
-      const handle = box(chassis, 0.025, 0.035, 0.16, style === 'executive' ? chromeMat : bodyMat, side * (M.w / 2 + 0.005), bodyTop - 0.16, M.cabZ + 0.18);
+      const handle = box(chassis, 0.025, 0.035, 0.16, style === 'executive' || style === 'falcon' ? chromeMat : bodyMat, side * (M.w / 2 + 0.005), bodyTop - 0.16, M.cabZ + 0.18);
       handle.castShadow = false;
     });
 
-    const headY = style === 'trail' ? 0.88 : style === 'executive' ? 0.72 : style === 'rally' ? 0.76 : style === 'apex' ? 0.52 : 0.62;
-    const tailY = style === 'trail' ? 0.92 : style === 'executive' ? 0.70 : style === 'rally' ? 0.80 : style === 'apex' ? 0.68 : 0.78;
+    const headY = style === 'trail' ? 0.88 : style === 'executive' ? 0.72 : style === 'rally' ? 0.76 : style === 'apex' ? 0.52
+      : style === 'vibe' ? 0.74 : style === 'ranger' ? 0.94 : style === 'comet' ? 0.60 : style === 'falcon' ? 0.68
+      : style === 'titan' ? 0.68 : 0.62;
+    const tailY = style === 'trail' ? 0.92 : style === 'executive' ? 0.70 : style === 'rally' ? 0.80 : style === 'apex' ? 0.68
+      : style === 'vibe' ? 0.80 : style === 'ranger' ? 1.00 : style === 'comet' ? 0.72 : style === 'falcon' ? 0.72
+      : style === 'titan' ? 0.78 : 0.78;
     const headZ = style === 'apex' ? frontZ - 0.1 : frontZ - 0.01;
     const headX = M.w * 0.33;
-    const plateY = style === 'apex' ? 0.36 : style === 'trail' ? 0.55 : style === 'rally' ? 0.49 : style === 'executive' ? 0.46 : 0.46;
+    const plateY = style === 'apex' ? 0.36 : style === 'trail' ? 0.55 : style === 'rally' ? 0.49 : style === 'executive' ? 0.46
+      : style === 'ranger' ? 0.56 : style === 'comet' ? 0.34 : style === 'titan' ? 0.46 : 0.46;
 
     if (style === 'metro') {
       cyl(chassis, 0.11, 0.11, 0.07, 16, headMat, -headX * 0.72, headY, headZ, 'z');
@@ -1632,6 +1759,132 @@
       });
       cabinHide.push(box(chassis, 0.28, 0.035, 0.24, carbonMat, 0, roofTop + 0.05, roofFront + 0.15));
       box(chassis, 0.5, 0.02, 0.22, carbonMat, 0, bodyTop + 0.012, cabFront + 0.38);
+    } else if (style === 'vibe') {
+      cyl(chassis, 0.115, 0.115, 0.07, 16, headMat, -headX * 0.78, headY, headZ, 'z');
+      cyl(chassis, 0.115, 0.115, 0.07, 16, headMat, headX * 0.78, headY, headZ, 'z');
+      cyl(chassis, 0.065, 0.065, 0.075, 12, headMat, -headX * 0.42, headY, headZ, 'z');
+      cyl(chassis, 0.065, 0.065, 0.075, 12, headMat, headX * 0.42, headY, headZ, 'z');
+      box(chassis, M.w * 0.5, 0.15, 0.06, trimMat, 0, headY - 0.16, frontZ + 0.01);
+      box(chassis, M.w * 0.82, 0.05, 0.32, carbonMat, 0, floor + 0.05, frontZ - 0.08);
+      const stripeMat = new THREE.MeshBasicMaterial({ color: 0xf4f1ea });
+      [-0.14, 0.14].forEach(xx => {
+        box(chassis, 0.11, 0.012, frontZ - cabFront - 0.06, stripeMat, xx, bodyTop + 0.007, (frontZ + cabFront) / 2);
+        box(chassis, 0.11, 0.012, rearZ - cabRear + 0.05, stripeMat, xx, bodyTop + 0.007, (cabRear + rearZ) / 2);
+      });
+      cabinHide.push(box(chassis, M.cabW - 0.08, 0.026, roofFront - roofRear - 0.03, carbonMat, 0, roofTop + 0.05, (roofFront + roofRear) / 2));
+      const stripeLen = roofFront - roofRear - 0.08;
+      [-0.14, 0.14].forEach(xx => cabinHide.push(box(chassis, 0.11, 0.012, stripeLen, stripeMat, xx, roofTop + 0.066, (roofFront + roofRear) / 2)));
+      const wingY = bodyTop + 0.48;
+      [-0.56, 0.56].forEach(sx => box(chassis, 0.06, wingY - bodyTop + 0.06, 0.08, carbonMat, sx, (bodyTop + wingY) / 2, rearZ + 0.24));
+      box(chassis, M.w - 0.18, 0.045, 0.3, carbonMat, 0, wingY, rearZ + 0.24);
+      box(chassis, M.w - 0.34, 0.018, 0.08, accentMat, 0, wingY + 0.028, rearZ + 0.36);
+      box(chassis, 0.15, 0.24, 0.07, tailMat, -M.w * 0.4, tailY, rearZ - 0.01);
+      box(chassis, 0.15, 0.24, 0.07, tailMat, M.w * 0.4, tailY, rearZ - 0.01);
+      [-1, 1].forEach(side => {
+        box(chassis, 0.09, 0.07, M.len * 0.4, carbonMat, side * (M.w / 2 - 0.045), floor + 0.09, 0);
+        box(chassis, 0.03, 0.16, 0.32, accentMat, side * (M.w / 2 + 0.005), bodyTop - 0.3, cabRear + 0.2);
+      });
+      cyl(chassis, 0.055, 0.065, 0.22, 8, chromeMat, M.w * 0.3, floor + 0.13, rearZ - 0.08, 'z').rotation.x = Math.PI / 2;
+    } else if (style === 'ranger') {
+      box(chassis, M.w * 0.5, 0.2, 0.08, headMat, -headX, headY, headZ);
+      box(chassis, M.w * 0.5, 0.2, 0.08, headMat, headX, headY, headZ);
+      cyl(chassis, 0.095, 0.095, 0.075, 12, headMat, -M.w * 0.36, headY - 0.27, frontZ + 0.01, 'z');
+      cyl(chassis, 0.095, 0.095, 0.075, 12, headMat, M.w * 0.36, headY - 0.27, frontZ + 0.01, 'z');
+      box(chassis, M.w * 0.58, 0.28, 0.08, trimMat, 0, headY - 0.18, frontZ + 0.02);
+      [headY - 0.08, headY - 0.2, headY - 0.32].forEach(yy => box(chassis, M.w * 0.78, 0.055, 0.07, chromeMat, 0, yy, frontZ + 0.08));
+      [-0.62, -0.32, 0.32, 0.62].forEach(xx => box(chassis, 0.055, 0.34, 0.07, trimMat, xx * M.w * 0.5, headY - 0.15, frontZ + 0.08));
+      box(chassis, M.w * 0.7, 0.07, 0.3, chromeMat, 0, floor + 0.1, frontZ + 0.02);
+      box(chassis, M.w * 0.68, 0.08, 0.4, trimMat, 0, floor + 0.03, frontZ - 0.16);
+      [-1, 1].forEach(side => {
+        box(chassis, 0.08, 0.06, M.roofL * 0.92, trimMat, side * (M.cabW / 2 - 0.12), roofTop + 0.08, M.roofZ);
+        [-0.62, 0, 0.62].forEach(k => box(chassis, M.cabW * 0.9, 0.045, 0.055, trimMat, 0, roofTop + 0.11, M.roofZ + k * M.roofL * 0.32));
+        box(chassis, 0.12, 0.055, M.len * 0.46, trimMat, side * (M.w / 2 + 0.06), floor + 0.04, 0.05);
+      });
+      [-0.3, 0, 0.3].forEach(xx => cyl(chassis, 0.085, 0.085, 0.08, 12, headMat, xx * M.w * 0.7, roofTop + 0.19, roofFront + 0.12, 'z'));
+      box(chassis, M.cabW * 0.9, 0.06, 0.08, trimMat, 0, roofTop + 0.14, roofFront + 0.1);
+      box(chassis, 0.09, roofTop - bodyTop - 0.04, 0.13, trimMat, M.w / 2 - 0.02, (roofTop + bodyTop) / 2, cabFront - 0.12);
+      box(chassis, 0.13, 0.1, 0.18, carbonMat, M.w / 2 + 0.005, roofTop - 0.01, cabFront - 0.1);
+      const spare = cyl(chassis, M.wheelR * 0.95, M.wheelR * 0.95, 0.26, 18, tyreMat, 0, bodyTop - 0.06, rearZ - 0.24, 'z');
+      spare.rotation.x = Math.PI / 2;
+      const spareRim = cyl(chassis, M.wheelR * 0.52, M.wheelR * 0.52, 0.28, 16, chromeMat, 0, bodyTop - 0.06, rearZ - 0.26, 'z');
+      spareRim.rotation.x = Math.PI / 2;
+      box(chassis, 0.16, 0.34, 0.08, tailMat, -M.w * 0.4, tailY, rearZ - 0.01);
+      box(chassis, 0.16, 0.34, 0.08, tailMat, M.w * 0.4, tailY, rearZ - 0.01);
+      box(chassis, M.w * 0.64, 0.08, 0.12, chromeMat, 0, floor + 0.13, rearZ + 0.02);
+      cyl(chassis, 0.04, 0.05, 0.22, 8, trimMat, -M.w * 0.26, floor + 0.18, rearZ - 0.06, 'z').rotation.x = Math.PI / 2;
+    } else if (style === 'comet') {
+      box(chassis, M.w * 0.34, 0.06, 0.07, headMat, -headX * 0.9, headY, headZ);
+      box(chassis, M.w * 0.34, 0.06, 0.07, headMat, headX * 0.9, headY, headZ);
+      box(chassis, M.w * 0.3, 0.025, 0.02, accentMat, -headX * 0.9, headY + 0.06, headZ + 0.02);
+      box(chassis, M.w * 0.3, 0.025, 0.02, accentMat, headX * 0.9, headY + 0.06, headZ + 0.02);
+      box(chassis, M.w * 0.46, 0.1, 0.06, carbonMat, 0, headY - 0.13, frontZ - 0.02);
+      box(chassis, M.w * 0.96, 0.05, 0.4, carbonMat, 0, floor + 0.045, frontZ - 0.1);
+      [-1, 1].forEach(side => {
+        const canard = box(chassis, 0.26, 0.02, 0.14, carbonMat, side * (M.w / 2 - 0.11), floor + 0.15, frontZ - 0.15);
+        canard.rotation.y = side * 0.32;
+        const intake = box(chassis, 0.12, 0.26, 0.52, carbonMat, side * (M.w / 2 - 0.02), bodyTop - 0.3, cabRear + 0.58);
+        intake.rotation.y = side * 0.18;
+        box(chassis, 0.04, 0.2, 0.4, accentMat, side * (M.w / 2 + 0.005), bodyTop - 0.3, cabRear + 0.58);
+        box(chassis, 0.1, 0.08, M.len * 0.38, carbonMat, side * (M.w / 2 - 0.05), floor + 0.08, 0);
+      });
+      [-0.55, -0.35, 0.35, 0.55].forEach(xx => cyl(chassis, 0.075, 0.075, 0.06, 14, tailMat, xx * M.w * 0.5, tailY, rearZ - 0.01, 'z'));
+      box(chassis, M.w * 0.56, 0.04, 0.06, accentMat, 0, tailY + 0.11, rearZ - 0.02);
+      const duck = box(chassis, M.w * 0.72, 0.045, 0.34, bodyMat, 0, bodyTop + 0.22, rearZ + 0.18);
+      duck.rotation.x = -0.26;
+      [-0.38, 0.38].forEach(xx => box(chassis, 0.05, 0.18, 0.08, carbonMat, xx, bodyTop + 0.13, rearZ + 0.12));
+      box(chassis, M.w * 0.86, 0.12, 0.3, carbonMat, 0, floor + 0.15, rearZ + 0.04);
+      for (let i = -3; i <= 3; i++) box(chassis, 0.025, 0.15, 0.28, carbonMat, i * M.w * 0.1, floor + 0.12, rearZ + 0.05);
+      cabinHide.push(box(chassis, M.cabW - 0.1, 0.024, roofFront - roofRear - 0.04, carbonMat, 0, roofTop + 0.048, (roofFront + roofRear) / 2));
+      [-0.28, 0.28].forEach(xx => cyl(chassis, 0.055, 0.065, 0.2, 9, chromeMat, xx, floor + 0.13, rearZ - 0.09, 'z').rotation.x = Math.PI / 2);
+    } else if (style === 'falcon') {
+      box(chassis, M.w * 0.42, 0.075, 0.07, headMat, -headX, headY, headZ);
+      box(chassis, M.w * 0.42, 0.075, 0.07, headMat, headX, headY, headZ);
+      box(chassis, M.w * 0.5, 0.23, 0.09, chromeMat, 0, headY - 0.16, frontZ + 0.02);
+      box(chassis, M.w * 0.44, 0.17, 0.04, trimMat, 0, headY - 0.16, frontZ + 0.07);
+      for (let i = -4; i <= 4; i++) box(chassis, 0.02, 0.17, 0.02, chromeMat, i * M.w * 0.05, headY - 0.16, frontZ + 0.09);
+      box(chassis, M.w * 0.9, 0.035, 0.24, chromeMat, 0, floor + 0.1, frontZ - 0.02);
+      box(chassis, 0.035, 0.035, frontZ - cabFront - 0.08, chromeMat, -M.w * 0.12, bodyTop + 0.02, (frontZ + cabFront) / 2);
+      box(chassis, 0.035, 0.035, frontZ - cabFront - 0.08, chromeMat, M.w * 0.12, bodyTop + 0.02, (frontZ + cabFront) / 2);
+      box(chassis, M.w * 0.5, 0.11, 0.46, bodyMat, 0, bodyTop + 0.05, cabFront + 0.42);
+      [-1, 1].forEach(side => {
+        [0.28, 0.12, -0.04].forEach((zz, i) => box(chassis, 0.025, 0.045, 0.14, chromeMat, side * (M.w / 2 + 0.008), bodyTop - 0.18, cabFront + 0.34 + zz));
+        box(chassis, 0.03, 0.05, M.len * 0.44, chromeMat, side * (M.w / 2 + 0.005), bodyTop - 0.28, 0);
+      });
+      box(chassis, 0.42, 0.12, 0.07, tailMat, -M.w * 0.34, tailY, rearZ - 0.01);
+      box(chassis, 0.42, 0.12, 0.07, tailMat, M.w * 0.34, tailY, rearZ - 0.01);
+      box(chassis, M.w * 0.76, 0.03, 0.05, chromeMat, 0, tailY + 0.1, rearZ - 0.02);
+      box(chassis, M.w * 0.8, 0.035, 0.24, bodyMat, 0, bodyTop + 0.18, rearZ + 0.11);
+      [-0.4, 0.4].forEach(xx => box(chassis, 0.05, 0.15, 0.07, bodyMat, xx, bodyTop + 0.1, rearZ + 0.08));
+      [-0.44, -0.28, 0.28, 0.44].forEach(xx => cyl(chassis, 0.05, 0.06, 0.2, 9, chromeMat, xx * M.w * 0.5, floor + 0.15, rearZ - 0.08, 'z').rotation.x = Math.PI / 2);
+      cabinHide.push(box(chassis, M.cabW - 0.12, 0.022, roofFront - roofRear - 0.05, bodyMat, 0, roofTop + 0.047, (roofFront + roofRear) / 2));
+    } else if (style === 'titan') {
+      box(chassis, M.w * 0.56, 0.16, 0.07, headMat, -headX, headY, headZ);
+      box(chassis, M.w * 0.56, 0.16, 0.07, headMat, headX, headY, headZ);
+      box(chassis, M.w * 0.5, 0.18, 0.08, trimMat, 0, headY - 0.14, frontZ + 0.02);
+      box(chassis, M.w * 0.5, 0.02, 0.02, chromeMat, 0, headY - 0.05, frontZ + 0.07);
+      box(chassis, M.w * 0.9, 0.05, 0.3, carbonMat, 0, floor + 0.07, frontZ - 0.08);
+      box(chassis, 0.6, 0.13, 0.55, carbonMat, 0, bodyTop + 0.07, cabFront + 0.62);
+      box(chassis, 0.46, 0.06, 0.4, trimMat, 0, bodyTop + 0.145, cabFront + 0.64);
+      const stripeMat = new THREE.MeshBasicMaterial({ color: 0xf1efe6 });
+      const stripeLen = roofFront - roofRear - 0.08;
+      [-0.16, 0.16].forEach(xx => {
+        box(chassis, 0.14, 0.012, frontZ - cabFront - 0.1, stripeMat, xx, bodyTop + 0.009, (frontZ + cabFront) / 2);
+        cabinHide.push(box(chassis, 0.14, 0.012, stripeLen, stripeMat, xx, roofTop + 0.063, (roofFront + roofRear) / 2));
+        box(chassis, 0.14, 0.012, rearZ - cabRear + 0.05, stripeMat, xx, bodyTop + 0.009, (cabRear + rearZ) / 2);
+      });
+      [-1, 1].forEach(side => {
+        box(chassis, 0.1, 0.32, 1.2, bodyMat, side * (M.w / 2 - 0.005), bodyTop - 0.34, cabRear - 0.35);
+        box(chassis, 0.08, 0.07, M.len * 0.4, carbonMat, side * (M.w / 2 - 0.05), floor + 0.08, 0);
+        cyl(chassis, 0.055, 0.065, 0.62, 10, chromeMat, side * (M.w / 2 + 0.045), floor + 0.19, rearZ + 0.62, 'z').rotation.x = Math.PI / 2;
+        cyl(chassis, 0.045, 0.05, 0.2, 8, trimMat, side * (M.w / 2 + 0.05), floor + 0.1, rearZ + 0.97, 'z').rotation.x = Math.PI / 2;
+      });
+      box(chassis, M.w * 0.34, 0.16, 0.07, tailMat, -M.w * 0.3, tailY, rearZ - 0.01);
+      box(chassis, M.w * 0.34, 0.16, 0.07, tailMat, M.w * 0.3, tailY, rearZ - 0.01);
+      box(chassis, M.w * 0.94, 0.035, 0.05, accentMat, 0, tailY + 0.1, rearZ - 0.02);
+      box(chassis, M.w * 0.82, 0.04, 0.3, carbonMat, 0, bodyTop + 0.18, rearZ + 0.12);
+      [-0.46, 0.46].forEach(xx => box(chassis, 0.05, 0.17, 0.07, carbonMat, xx, bodyTop + 0.1, rearZ + 0.08));
+      box(chassis, M.w * 0.68, 0.12, 0.08, trimMat, 0, floor + 0.16, rearZ + 0.02);
+      box(chassis, 0.5, 0.016, 0.2, chromeMat, 0, bodyTop + 0.008, cabFront + 0.9);
     }
 
     box(chassis, 0.5, 0.14, 0.04, plateMats[Math.floor(Math.random() * plateMats.length)], 0, plateY, frontZ + 0.09);
@@ -3131,7 +3384,8 @@
   const HB_DECEL = 11;
   const PB = { x: 0, z: 0, vx: 0, vz: 0, w: 0, invM: 1 / 1350, invI: 1 / 2400 };
 
-  const carColors = { metro: 0xf2c230, trail: 0x2d6a4f, executive: 0x245a8c, rallyx: 0xe9edf1, apex: 0xff5a1f,
+  const carColors = { metro: 0xf2c230, trail: 0x2d6a4f, vibe: 0xff7a1a, executive: 0x245a8c, ranger: 0x356b48,
+                      rallyx: 0xe9edf1, comet: 0x1fa5a5, falcon: 0x245a8c, titan: 0xa32a2a, apex: 0xff5a1f,
                       coupe: 0xe8322b, sedan: 0x2f6fe0, hatch: 0xf2c230, suv: 0x2d6a4f, van: 0xf2f2f0, pickup: 0xa32a2a, wagon: 0x5a6f8c, mini: 0xd9a21b, hot: 0x1e4d8c,
                       muscle: 0xc23b22, sport: 0xf5d90a, hyper: 0x8e44ad, gt: 0x245a8c, track: 0xe8322b, interceptor: 0x1d1f23 };
   const factoryColors = Object.assign({}, carColors);
@@ -3258,7 +3512,7 @@
           c.active = false; dirty = true;
           cDummy.position.set(c.x, -50, c.z); cDummy.rotation.set(0, 0, 0); cDummy.updateMatrix();
           coinsMesh.setMatrixAt(i, cDummy.matrix);
-          addCoins(5, 'pickup');
+          addCoins(4, 'pickup');
           addDailyProgress('pickup', 1);
           driftFlashT = 1.4; driftFlashVal = 5;
           sfx.coin();
@@ -3341,7 +3595,8 @@
     wantedStars = starsFor(wantedPts);
     if (wantedStars > maxWanted) maxWanted = wantedStars;
     if (wantedStars > pursuitPeak) pursuitPeak = wantedStars;
-    if (wantedStars > before) { sfx.star(); paintStars(true); if (reason) toast(reason, 'red'); }
+    if (reason) toast(reason, 'red');
+    if (wantedStars > before) { sfx.star(); paintStars(true); }
     else paintStars(false);
   }
   function updateWanted(dt) {
@@ -3356,6 +3611,7 @@
   }
 
   let redCd = {}, wrongT = 0, wrongCd = 0, offT = 0, offCd = 0;
+  let speedT = 0, speedCd = 0, recklessT = 0, recklessCd = 0, hitRunCd = 0;
   function nearRoad(v) { const k = nearRc(v); return Math.abs(v - rc(k)); }
   function checkViolations(dt) {
     if (wrecked) return;
@@ -3368,6 +3624,7 @@
         if (st === 'red' && !redCd[key]) {
           redCd[key] = true;
           addWanted(1.3, 'Ran a red light');
+          addDailyProgress('red', 1);
           setTimeout(() => { delete redCd[key]; }, 6000);
         }
       }
@@ -3383,17 +3640,42 @@
       const c = rc(nearRc(car.z));
       if ((fx > 0 && car.z < c - 0.9) || (fx < 0 && car.z > c + 0.9)) wrong = true;
     }
-    if (wrong && wrongCd <= 0) {
-      wrongT += dt;
-      if (wrongT > 1.1) { addWanted(0.55, 'Driving against traffic'); wrongT = 0; wrongCd = 4; }
+    if (wrong) {
+      addDailyProgress('wrong', dt);
+      if (wrongCd <= 0) {
+        wrongT += dt;
+        if (wrongT > 1.1) { addWanted(0.55, 'Driving against traffic'); wrongT = 0; wrongCd = 4; }
+      }
     } else wrongT = Math.max(0, wrongT - dt * 2);
     offCd = Math.max(0, offCd - dt);
     if (dxr > R / 2 && dzr > R / 2 && spd > 2.2) {
+      addDailyProgress('off', dt);
       if (offCd <= 0) {
         offT += dt;
         if (offT > 1.3) { addWanted(0.45, 'Driving off-road'); offT = 0; offCd = 5; }
       }
     } else offT = Math.max(0, offT - dt * 2);
+
+    speedCd = Math.max(0, speedCd - dt);
+    const kmh = spd * 3.6;
+    if (kmh > 105 && car.y < 0.15) {
+      addDailyProgress('speed', dt);
+      if (speedCd <= 0) {
+        speedT += dt;
+        if (speedT > 2.2) { addWanted(0.6, 'Speeding'); speedT = 0; speedCd = 8; }
+      }
+    } else speedT = Math.max(0, speedT - dt * 2);
+
+    recklessCd = Math.max(0, recklessCd - dt);
+    const reckless = car.y < 0.15 && spd > 8 && ((car.hb && Math.abs(car.vf) > 4) || Math.abs(car.vl) > 4.8);
+    if (reckless) {
+      addDailyProgress('reckless', dt);
+      if (recklessCd <= 0) {
+        recklessT += dt;
+        if (recklessT > 1.3) { addWanted(0.5, 'Reckless driving'); recklessT = 0; recklessCd = 6; }
+      }
+    } else recklessT = Math.max(0, recklessT - dt * 2);
+    hitRunCd = Math.max(0, hitRunCd - dt);
   }
 
   const TRAFFIC_N = 14;
@@ -3956,7 +4238,14 @@
       if (circlesTouch(car.x, car.z, pfx, pfz, pOffs, CAR_R, t.x, t.z, Math.sin(t.h), Math.cos(t.h), [o, 0, -o], m.w / 2)) {
         const spd = Math.hypot(car.vx, car.vz);
         knockTraffic(t, car.vx, car.vz);
-        if (spd > 4) { addWanted(0.25); runHits++; }
+        if (spd > 4) {
+          if (spd > 7 && hitRunCd <= 0) {
+            addWanted(0.7, 'Hit-and-run');
+            hitRunCd = 3;
+            addDailyProgress('hit', 1);
+          } else addWanted(0.25);
+          runHits++;
+        }
       }
     }
   }
@@ -4634,6 +4923,7 @@
   }
 
   let bustT = 0, escapeT = 0, copHitCd = 0, nearestCopDist = 1e9, blockCd = 10, backupCd = 16;
+  let copTouchT = 0, nearestCopGap = 1e9, policeLastNow = performance.now();
   const blockDone = new Map();
   let copFlash = 0;
   const POLICE_N = 6, POLICE_N_MAX = 10;
@@ -4662,7 +4952,7 @@
     c.hp -= d;
     if (c.hp <= 0) {
       c.down = true; c.downT = 0; c.wK = (Math.random() < 0.5 ? -1 : 1) * 2.6; c.speed = Math.min(c.speed, 2);
-      addCoins(15, 'cop');
+      addCoins(12, 'cop');
       runCopsDowned++;
       runStats.copsDowned = runCopsDowned;
       addDailyProgress('cop', 1);
@@ -4846,7 +5136,7 @@
     while (police.length) removeCop(police[0]);
     blockDone.clear();
     blockCd = 8;
-    bustT = 0; escapeT = 0;
+    bustT = 0; escapeT = 0; copTouchT = 0; nearestCopGap = 1e9;
   }
 
   function laneOff(axis, dir) { return axis === 'z' ? -dir * LANE : dir * LANE; }
@@ -4949,6 +5239,7 @@
         car.wKick = clamp(car.wKick + PB.w, -3, 3);
         c.x = cb.x; c.z = cb.z;
         copFromBody(c, cb);
+        copTouchT = Math.max(copTouchT, 0.5);
         c.mesh.group.position.set(c.x, c.mesh.group.position.y, c.z);
         if (hit > 0) {
           const dv = hit * PB.invM;
@@ -5144,8 +5435,13 @@
   }
 
   function updatePolice(dt) {
+    const now = performance.now();
+    const pdt = clamp((now - policeLastNow) / 1000, 0, 0.25);
+    policeLastNow = now;
     copHitCd = Math.max(0, copHitCd - dt);
+    copTouchT = Math.max(0, copTouchT - pdt);
     nearestCopDist = 1e9;
+    nearestCopGap = 1e9;
     const stars = wantedStars;
 
     if (stars >= 1 && !wrecked) {
@@ -5185,7 +5481,11 @@
       c.cooldown = Math.max(0, c.cooldown - dt);
       const dxp = car.x - c.x, dzp = car.z - c.z;
       const distP = Math.hypot(dxp, dzp);
-      if (!c.down && distP < nearestCopDist) nearestCopDist = distP;
+      if (!c.down) {
+        if (distP < nearestCopDist) nearestCopDist = distP;
+        const gap = distP - c.reach - CAR_OFF;
+        if (gap < nearestCopGap) nearestCopGap = gap;
+      }
 
       if (c.down) {
         c.downT += dt;
@@ -5321,13 +5621,24 @@
       COP_BLUE_MAT.color.setHex(0x0a1a66);
     }
 
+    const bustDur = stars >= 4 ? 2.2 : 3;
     if (stars >= 1 && !wrecked) {
       const pSpd = Math.hypot(car.vx, car.vz);
-      if (nearestCopDist < 13 && pSpd < 2.0) {
-        bustT += dt;
-        if (bustT >= (stars >= 4 ? 2.2 : 3)) endRun('busted');
-      } else bustT = Math.max(0, bustT - dt * 1.6);
-      escapeT = nearestCopDist > 95 ? escapeT + dt : 0;
+      const contact = copTouchT > 0 && nearestCopDist < 18;
+      const closeEnough = nearestCopDist < 15 || (contact && nearestCopGap < 6);
+      const slowEnough = pSpd < (contact ? 6.5 : nearestCopDist < 9 ? 4.2 : 3.2);
+      if (closeEnough && slowEnough) {
+        bustT += pdt;
+        escapeT = 0;
+        if (bustT >= bustDur) {
+          if (bustEl) bustEl.classList.remove('show');
+          endRun('busted');
+          return;
+        }
+      } else {
+        bustT = Math.max(0, bustT - pdt * 1.6);
+        escapeT = nearestCopDist > 90 ? escapeT + pdt : 0;
+      }
       if (escapeT > 5) {
         escapeT = 0; bustT = 0;
         runEscapes++;
@@ -5345,11 +5656,11 @@
 
     if (bustEl) {
       const evading = escapeT > 0.25;
-      const on = bustT > 0.02 || evading;
+      const on = bustT > 0 || evading;
       bustEl.classList.toggle('show', on);
       if (on) {
         bustLabel.textContent = evading ? 'Evading' : 'Busted in';
-        bustNum.textContent = evading ? Math.max(1, Math.ceil(5 - escapeT)) : Math.max(1, Math.ceil(3 - bustT));
+        bustNum.textContent = evading ? Math.max(1, Math.ceil(5 - escapeT)) : Math.max(1, Math.ceil(Math.max(0, bustDur - bustT)));
       }
     }
     sfx.setSiren(stars >= 1 && nearestCopDist < 130 ? clamp(1 - nearestCopDist / 130, 0, 1) : 0, stars >= 4 ? 2 : 1);
@@ -5397,22 +5708,20 @@
 
   const runStats = { driftTotal: 0, dist: 0, time: 0, escapes: 0, escapedStars: 0, hits: 0, copsDowned: 0, nearMiss: 0 };
   let runEscapes = 0, runCopsDowned = 0, escapedStarsRun = 0;
-  const MISSIONS = [
-    { id: 'm_time1', tier: 'Easy', coin: 90, name: 'Warm-up', desc: 'Drive for 90 seconds in one run', check: s => s.time >= 90 },
-    { id: 'm_dist1', tier: 'Medium', coin: 220, name: 'City tour', desc: 'Drive 3 km in one run', check: s => s.dist >= 3000 },
-    { id: 'm_cop1', tier: 'Hard', coin: 350, name: 'Clean getaway', desc: 'Escape a police pursuit', check: s => s.escapes >= 1 },
-    { id: 'm_drift2', tier: 'Very Hard', coin: 420, name: 'Drift king', desc: 'Earn 2000 coins from drifts in one run', check: s => s.driftTotal >= 2000 },
-    { id: 'm_cop2', tier: 'Expert', coin: 600, name: 'Untouchable', desc: 'Escape a 3-star pursuit', check: s => s.escapedStars >= 3 }
-  ];
-
   const QUEST_POOL = [
-    { id: 'dq_dist', name: 'Road trip', desc: 'Drive 1500 m today', coin: 60, goal: 1500, key: 'dist' },
-    { id: 'dq_time', name: 'Behind the wheel', desc: 'Drive for 2 minutes today', coin: 55, goal: 120, key: 'time' },
-    { id: 'dq_pickup', name: 'Coin hunter', desc: 'Collect 10 coin pickups today', coin: 50, goal: 10, key: 'pickup' },
-    { id: 'dq_drift', name: 'Tire smoke', desc: 'Earn 300 coins from drifts today', coin: 70, goal: 300, key: 'drift' },
-    { id: 'dq_near', name: 'Close call', desc: '8 near misses today', coin: 65, goal: 8, key: 'near' },
-    { id: 'dq_cop', name: 'Cop stopper', desc: 'Disable a police car today', coin: 90, goal: 1, key: 'cop' },
-    { id: 'dq_escape', name: 'Clean getaway', desc: 'Escape a police pursuit today', coin: 85, goal: 1, key: 'escape' }
+    { id: 'dq_dist', tier: 'Easy', name: 'Road trip', desc: 'Drive 1500 m today', coin: 55, goal: 1500, key: 'dist' },
+    { id: 'dq_time', tier: 'Easy', name: 'Behind the wheel', desc: 'Drive for 2 minutes today', coin: 50, goal: 120, key: 'time' },
+    { id: 'dq_pickup', tier: 'Easy', name: 'Coin hunter', desc: 'Collect 10 coin pickups today', coin: 45, goal: 10, key: 'pickup' },
+    { id: 'dq_drift', tier: 'Medium', name: 'Tire smoke', desc: 'Earn 300 coins from drifts today', coin: 70, goal: 300, key: 'drift' },
+    { id: 'dq_near', tier: 'Medium', name: 'Close call', desc: '8 near misses today', coin: 60, goal: 8, key: 'near' },
+    { id: 'dq_cop', tier: 'Hard', name: 'Cop stopper', desc: 'Disable a police car today', coin: 90, goal: 1, key: 'cop' },
+    { id: 'dq_escape', tier: 'Hard', name: 'Clean getaway', desc: 'Escape a police pursuit today', coin: 85, goal: 1, key: 'escape' },
+    { id: 'dq_red', tier: 'Medium', name: 'Red-light runner', desc: 'Run 3 red lights today', coin: 75, goal: 3, key: 'red' },
+    { id: 'dq_wrong', tier: 'Hard', name: 'Wrong way', desc: 'Drive 15 s against traffic today', coin: 85, goal: 15, key: 'wrong' },
+    { id: 'dq_off', tier: 'Medium', name: 'Off-road excursion', desc: 'Spend 18 s off-road today', coin: 75, goal: 18, key: 'off' },
+    { id: 'dq_speed', tier: 'Hard', name: 'Speed demon', desc: 'Spend 20 s above 105 km/h today', coin: 85, goal: 20, key: 'speed' },
+    { id: 'dq_reckless', tier: 'Medium', name: 'Reckless driving', desc: 'Drive recklessly for 12 s today', coin: 80, goal: 12, key: 'reckless' },
+    { id: 'dq_hit', tier: 'Very Hard', name: 'Public menace', desc: 'Cause 3 hit-and-runs today', coin: 110, goal: 3, key: 'hit' }
   ];
   const DAY_MS = 24 * 60 * 60 * 1000;
   function localDayKey(d) {
@@ -5428,15 +5737,15 @@
   function ensureDaily() {
     const d = settings.daily;
     const dayKey = localDayKey();
-    const idsOk = d && Array.isArray(d.ids) && d.ids.length === 3 && d.ids[0] !== d.ids[1] && d.ids[0] !== d.ids[2] && d.ids[1] !== d.ids[2] && d.ids.every(id => questById(id));
+    const idsOk = d && Array.isArray(d.ids) && d.ids.length === 5 && new Set(d.ids).size === 5 && d.ids.every(id => questById(id));
     if (!idsOk || d.dayKey !== dayKey) {
       const prev = d && Array.isArray(d.ids) ? d.ids : [];
       let ids = [];
       for (let tries = 0; tries < 20; tries++) {
         const pool = QUEST_POOL.slice(), picked = [];
-        for (let i = 0; i < 3 && pool.length; i++) picked.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0].id);
+        for (let i = 0; i < 5 && pool.length; i++) picked.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0].id);
         ids = picked;
-        if (!(prev.length === 3 && ids.every(id => prev.indexOf(id) >= 0) && prev.every(id => ids.indexOf(id) >= 0))) break;
+        if (!(prev.length === 5 && ids.every(id => prev.indexOf(id) >= 0) && prev.every(id => ids.indexOf(id) >= 0))) break;
       }
       settings.daily = { start: Date.now(), dayKey, ids, progress: {}, claimed: {} };
       saveSettings();
@@ -5467,7 +5776,7 @@
       if ((d.progress[id] || 0) >= q.goal) {
         d.claimed[id] = true;
         addCoins(q.coin, 'mission');
-        toast('Daily quest complete: ' + q.name + ' (+' + q.coin + ')', 'gold');
+        toast('Mission complete: ' + q.name + ' (+' + q.coin + ')', 'gold');
         sfx.mission();
         any = true;
       }
@@ -5483,64 +5792,39 @@
   function renderMissions() {
     ensureDaily();
     const box = $('misList');
-    if (box) {
-      box.innerHTML = '';
-      for (const m of MISSIONS) {
-        const done = !!settings.missions[m.id];
-        const row = document.createElement('div');
-        row.className = 'mrow' + (done ? ' done' : '');
-        row.innerHTML = '<div class="mi"><b>' + m.name + '</b><span>' + m.desc + '</span></div>' +
-          '<span class="tier">' + m.tier + '</span>' +
-          (done
-            ? '<span class="done-ic"><svg viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5"/></svg></span>'
-            : '<span class="rew">+' + m.coin + '</span>');
-        box.appendChild(row);
-      }
-    }
-    const dbox = $('dqList');
-    if (dbox) {
-      dbox.innerHTML = '';
-      const d = settings.daily;
-      for (const id of d.ids) {
-        const q = questById(id);
-        if (!q) continue;
-        const done = !!d.claimed[id];
-        const prog = Math.min(q.goal, d.progress[id] || 0);
-        const row = document.createElement('div');
-        row.className = 'mrow' + (done ? ' done' : '');
-        row.innerHTML = '<div class="mi"><b>' + q.name + '</b><span>' + q.desc + (done ? '' : ' (' + Math.floor(prog) + '/' + q.goal + ')') + '</span></div>' +
-          (done
-            ? '<span class="done-ic"><svg viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5"/></svg></span>'
-            : '<span class="rew">+' + q.coin + '</span>');
-        dbox.appendChild(row);
-      }
+    if (!box) return;
+    box.innerHTML = '';
+    const d = settings.daily;
+    for (const id of d.ids) {
+      const q = questById(id);
+      if (!q) continue;
+      const done = !!d.claimed[id];
+      const prog = Math.min(q.goal, d.progress[id] || 0);
+      const pct = clamp(prog / q.goal, 0, 1);
+      const row = document.createElement('div');
+      row.className = 'mrow' + (done ? ' done' : '');
+      row.innerHTML = '<div class="mi"><b>' + q.name + '</b><span>' + q.desc + (done ? ' — complete' : ' (' + Math.floor(prog) + '/' + q.goal + ')') +
+        '<span class="mprog"><i style="width:' + (pct * 100).toFixed(0) + '%"></i></span></span></div>' +
+        '<span class="tier">' + (q.tier || 'Daily') + '</span>' +
+        (done
+          ? '<span class="done-ic"><svg viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5"/></svg></span>'
+          : '<span class="rew">+' + q.coin + '</span>');
+      box.appendChild(row);
     }
     updateDqTimer();
   }
   function updateDqTimer() {
-    const el = $('dqTimer');
+    const el = $('misTimer');
     if (!el) return;
     ensureDaily();
-    el.textContent = formatCountdown(nextMidnight() - Date.now());
+    el.textContent = 'reset in ' + formatCountdown(nextMidnight() - Date.now());
   }
   setInterval(() => {
     if (view !== 'missions') return;
     if (ensureDaily()) renderMissions();
     else updateDqTimer();
   }, 1000);
-  function checkMissions() {
-    for (const m of MISSIONS) {
-      if (settings.missions[m.id]) continue;
-      if (m.check(runStats)) {
-        settings.missions[m.id] = true;
-        addCoins(m.coin, 'mission');
-        saveSettings();
-        toast('Mission complete: ' + m.name + ' (+' + m.coin + ')', 'gold');
-        sfx.mission();
-        renderMissions();
-      }
-    }
-  }
+  function checkMissions() { checkDaily(); }
   function updateBankUI() {
     const b2 = $('garCoins');
     const v = Math.floor(settings.coins);
@@ -5555,12 +5839,12 @@
     if (wrecked) return;
     wrecked = true;
     if (driftBank > 0) {
-      const banked = Math.round(driftBank * driftCombo * 0.35);
+      const banked = Math.round(driftBank * driftCombo * 0.25);
       if (banked > 0) { addCoins(banked, 'drift'); runStats.driftTotal += banked; addDailyProgress('drift', banked); }
       driftBank = 0; driftTime = 0; driftCombo = 1;
     }
-    const distCoins = Math.round(runDist / 8);
-    const timeCoins = Math.round(runTime / 5);
+    const distCoins = Math.round(runDist / 11);
+    const timeCoins = Math.round(runTime / 8);
     const nearCoins = runNearMissCoins;
     const driftCoins = runDriftEarned;
     const mult = 1 + 0.2 * maxWanted;
@@ -5629,11 +5913,7 @@
     resetGame();
     respawnCoinsInitial();
     spawnPoliceInitial();
-    camMode = 0;
-    $('tglCam').setAttribute('aria-pressed', 'false');
-    chase.snap = true;
-    syncCamLens(false);
-    dirty = true;
+    setCamMode(camMode);
   }
   function recover() {
     wreckEl.classList.remove('open');
@@ -5657,13 +5937,13 @@
                      ['brake', 'Braking'], ['grip', 'Grip'], ['stability', 'Stability']];
   const COLORS = [['Red', 0xe8322b], ['Orange', 0xf28c28], ['Yellow', 0xf2c230], ['Green', 0x2e9d5b], ['Teal', 0x1fa5a5],
                   ['Blue', 0x2f6fe0], ['Purple', 0x7a4cc7], ['Pink', 0xe85d9c], ['White', 0xf1f1ec], ['Black', 0x2d3138]];
-  const COLOR_PRICE = 40;
-  const fills = {}, ups = {}, vals = {}, swatchEls = [];
+  const COLOR_PRICE = 75;
+  const fills = {}, vals = {}, swatchEls = [];
   STAT_DEFS.forEach(([k, label]) => {
     const row = document.createElement('div'); row.className = 'stat';
-    row.innerHTML = '<span>' + label + '</span><span class="bar"><i class="base"></i><i class="up"></i></span><b></b>';
+    row.innerHTML = '<span>' + label + '</span><span class="bar"><i class="base"></i></span><b></b>';
     $('stats').appendChild(row);
-    fills[k] = row.querySelector('i.base'); ups[k] = row.querySelector('i.up'); vals[k] = row.querySelector('b');
+    fills[k] = row.querySelector('i.base'); vals[k] = row.querySelector('b');
   });
   COLORS.forEach(([name, hex]) => {
     const b = document.createElement('button');
@@ -5671,7 +5951,7 @@
     b.style.background = '#' + hex.toString(16).padStart(6, '0');
     b.setAttribute('role', 'radio'); b.setAttribute('aria-label', name);
     b.innerHTML = '<span class="swp">' + COLOR_PRICE + '</span>';
-    b.addEventListener('click', () => pickColor(hex));
+    b.addEventListener('click', () => selectPaint(hex));
     $('swatches').appendChild(b); swatchEls.push({ el: b, hex, name });
   });
 
@@ -5682,8 +5962,10 @@
     ['brakes', 'Brakes', 'Shorter braking distance'],
     ['suspension', 'Suspension', 'Sharper, steadier steering']
   ];
-  const UPG_COSTS = [60, 100, 160];
+  const UPG_COSTS = [180, 340, 600];
   const STAT_MAX = 22;
+  let pendingUpg = null;
+  let pendingPaint = null;
   function isOwned(key) { return settings.owned.indexOf(key) >= 0; }
   function effectiveStatsBumped(key, part, add) {
     const st = CAR_MODELS[key].stats;
@@ -5698,11 +5980,20 @@
       stability: st.stability + sus * 0.5
     };
   }
-  function previewUpgrade(part) {
-    if (!isOwned(playerKey)) return;
+  function upgPrice(part, levelIndex) {
+    const m = CAR_MODELS[playerKey];
+    const factor = 1 + (m.tier || 0) * 0.35 + (m.price || 0) / 20000;
+    return Math.round(UPG_COSTS[levelIndex] * factor / 5) * 5;
+  }
+  function upgradeQuote(part, extra) {
     const lvl = upgLevel(playerKey, part);
-    if (lvl >= 3) return;
-    const cur = effectiveStats(playerKey), next = effectiveStatsBumped(playerKey, part, 1);
+    let cost = 0;
+    for (let i = 0; i < extra; i++) cost += upgPrice(part, Math.min(2, lvl + i));
+    return cost;
+  }
+  function previewUpgrade(part, extra) {
+    if (!isOwned(playerKey) || !extra) { clearPreview(); return; }
+    const cur = effectiveStats(playerKey), next = effectiveStatsBumped(playerKey, part, extra);
     STAT_DEFS.forEach(([k]) => {
       const bar = fills[k].parentElement;
       let prev = bar.querySelector('i.prev');
@@ -5713,7 +6004,7 @@
     });
   }
   function clearPreview() {
-    document.querySelectorAll('.bar i.prev').forEach(p => p.style.display = 'none');
+    document.querySelectorAll('.bar i.prev').forEach(p => p.remove());
   }
   function renderUpg() {
     const box = $('upgBox');
@@ -5724,43 +6015,63 @@
       box.innerHTML = '<p class="snote">Buy this car to unlock its upgrades.</p>';
       return;
     }
+    if (pendingUpg && pendingUpg.part) {
+      const lvl = upgLevel(playerKey, pendingUpg.part);
+      pendingUpg.extra = Math.min(pendingUpg.extra, Math.max(0, 3 - lvl));
+      if (pendingUpg.extra <= 0) pendingUpg = null;
+    }
     for (const [part, label, desc] of UPG_PARTS) {
       const lvl = upgLevel(playerKey, part);
-      const row = document.createElement('div');
-      row.className = 'uprow';
-      const pips = [0, 1, 2].map(i => '<i class="' + (i < lvl ? 'on' : '') + '"></i>').join('');
+      const extra = pendingUpg && pendingUpg.part === part ? pendingUpg.extra : 0;
       const maxed = lvl >= 3;
-      const cost = maxed ? null : UPG_COSTS[lvl];
+      const row = document.createElement('div');
+      row.className = 'uprow' + (extra > 0 ? ' pending' : '');
+      const pips = [0, 1, 2].map(i => '<i class="' + (i < lvl ? 'on' : i < lvl + extra ? 'next' : '') + '"></i>').join('');
+      const tailCost = maxed ? 0 : upgPrice(part, lvl);
+      const cost = extra > 0 ? upgradeQuote(part, extra) : tailCost;
+      const applyTxt = maxed ? 'MAX' : (extra > 0 ? 'Confirm ' + cost + ' c' : 'Confirm');
       row.innerHTML =
         '<div class="ul"><b>' + label + '</b><small>' + desc + '</small></div>' +
-        '<span class="pips">' + pips + '</span>' +
-        '<button class="ubuy' + (maxed ? ' max' : '') + '" type="button"' + (maxed ? ' disabled' : '') + '>' +
-        (maxed ? 'MAX' : cost + ' c') + '</button>';
+        '<div class="upctl">' +
+          '<button class="ustep minus" type="button" aria-label="Remove level"' + (extra > 0 ? '' : ' disabled') + '>−</button>' +
+          '<span class="pips">' + pips + '</span>' +
+          '<button class="ustep plus" type="button" aria-label="Add level"' + (maxed ? ' disabled' : '') + '>+</button>' +
+        '</div>' +
+        '<button class="ubuy' + (maxed ? ' max' : extra > 0 ? ' apply' : '') + '" type="button"' +
+          (maxed || extra === 0 || settings.coins < cost ? ' disabled' : '') + '>' + applyTxt + '</button>';
       if (!maxed) {
-        const btn = row.querySelector('button');
-        btn.addEventListener('click', () => buyUpgrade(part, cost));
-        btn.addEventListener('mouseenter', () => previewUpgrade(part));
-        btn.addEventListener('mouseleave', clearPreview);
-        btn.addEventListener('focus', () => previewUpgrade(part));
-        btn.addEventListener('blur', clearPreview);
+        row.querySelector('.plus').addEventListener('click', () => {
+          const cur = pendingUpg && pendingUpg.part === part ? pendingUpg.extra : 0;
+          pendingUpg = { part, extra: Math.min(3 - lvl, cur + 1) };
+          renderUpg();
+        });
+        row.querySelector('.minus').addEventListener('click', () => {
+          const cur = pendingUpg && pendingUpg.part === part ? pendingUpg.extra : 0;
+          if (cur <= 1) pendingUpg = null;
+          else pendingUpg = { part, extra: cur - 1 };
+          renderUpg();
+        });
+        if (extra > 0) row.querySelector('.ubuy').addEventListener('click', () => buyUpgrade(part, extra));
       }
       box.appendChild(row);
     }
+    if (pendingUpg) previewUpgrade(pendingUpg.part, pendingUpg.extra);
   }
-  function buyUpgrade(part, cost) {
-    if (!isOwned(playerKey)) return;
+  function buyUpgrade(part, extra) {
+    if (!isOwned(playerKey) || !extra) return;
     const lvl = upgLevel(playerKey, part);
-    if (lvl >= 3 || settings.coins < cost) { toast('Not enough coins', 'red'); return; }
+    if (lvl + extra > 3) return;
+    const cost = upgradeQuote(part, extra);
+    if (settings.coins < cost) { toast('Not enough coins', 'red'); return; }
     settings.coins -= cost;
     if (!settings.upg[playerKey]) settings.upg[playerKey] = {};
-    settings.upg[playerKey][part] = lvl + 1;
+    settings.upg[playerKey][part] = lvl + extra;
+    pendingUpg = null;
     applySpec(playerKey);
     saveSettings();
     updateBankUI();
-    clearPreview();
-    renderUpg();
     renderGarage();
-    toast(labelOf(part) + ' upgraded to level ' + (lvl + 1), 'green');
+    toast(labelOf(part) + (extra > 1 ? ' upgraded ' + extra + ' levels' : ' upgraded to level ' + (lvl + 1)), 'green');
     sfx.coin();
   }
   function labelOf(part) {
@@ -5776,17 +6087,14 @@
     $('carDots').innerHTML = PLAYER_KEYS.map(k => '<i class="' + (k === playerKey ? 'on' : '') + '"></i>').join('');
     const STAT_MAX = 22;
     STAT_DEFS.forEach(([k]) => {
-      const base = m.stats[k], now = eff[k];
-      const bw = clamp(base / STAT_MAX * 100, 0, 100);
-      const ew = clamp(now / STAT_MAX * 100, 0, 100);
-      fills[k].style.width = bw + '%';
-      ups[k].style.left = bw + '%';
-      ups[k].style.width = Math.max(0, ew - bw) + '%';
+      const now = eff[k];
+      fills[k].style.width = clamp(now / STAT_MAX * 100, 0, 100) + '%';
       vals[k].textContent = Math.round(now * 10) / 10;
-      vals[k].title = 'Base ' + base + ' -> upgraded ' + (Math.round(now * 10) / 10);
+      vals[k].title = 'Current value (base ' + m.stats[k] + ')';
     });
+    const displayHex = pendingPaint !== null ? pendingPaint : carColors[playerKey];
     swatchEls.forEach(({ el, hex, name }) => {
-      const sel = hex === carColors[playerKey];
+      const sel = hex === displayHex;
       const owned = isPaintOwned(playerKey, hex);
       const carOwned = isOwned(playerKey);
       el.classList.toggle('sel', sel);
@@ -5810,6 +6118,8 @@
       btn.disabled = settings.coins < m.price;
       btn.classList.add('primary');
     }
+    syncPreviewColor();
+    renderPaintUI();
     renderUpg();
     updateBankUI();
   }
@@ -5819,32 +6129,74 @@
     const list = settings.paint && settings.paint[key];
     return Array.isArray(list) && list.indexOf(hex) >= 0;
   }
-  function pickColor(hex) {
+  function syncPreviewColor() {
+    if (!pv || !pv.car) return;
+    pv.car.setColor(pendingPaint !== null ? pendingPaint : carColors[playerKey]);
+  }
+  function renderPaintUI() {
+    const bar = $('paintBar'), note = $('paintNote'), ok = $('btnPaintConfirm');
+    if (!bar || !note || !ok) return;
+    const carOwned = isOwned(playerKey);
+    const pending = carOwned && pendingPaint !== null;
+    bar.classList.toggle('pending', pending);
+    if (!carOwned) {
+      note.textContent = 'Buy this car to paint it.';
+      ok.disabled = true;
+      return;
+    }
+    const price = pending && !isPaintOwned(playerKey, pendingPaint) ? COLOR_PRICE : 0;
+    if (pending) {
+      note.textContent = price ? 'Unlock this colour for ' + price + ' coins.' : 'Apply this colour to your car.';
+      ok.textContent = price ? 'Confirm · ' + price + ' c' : 'Confirm';
+      ok.disabled = settings.coins < price;
+    } else {
+      note.textContent = 'Factory paint is free. New colours cost ' + COLOR_PRICE + ' coins once per car.';
+      ok.textContent = 'Confirm';
+      ok.disabled = true;
+    }
+  }
+  function selectPaint(hex) {
     if (!isOwned(playerKey)) { toast('Buy this car first', 'red'); return; }
-    if (!isPaintOwned(playerKey, hex)) {
+    pendingPaint = hex === carColors[playerKey] ? null : hex;
+    dirty = true;
+    renderGarage();
+  }
+  function applyPaint() {
+    if (!isOwned(playerKey) || pendingPaint === null) return;
+    const hex = pendingPaint;
+    const purchased = !isPaintOwned(playerKey, hex);
+    if (purchased) {
       if (settings.coins < COLOR_PRICE) { toast('Not enough coins for paint', 'red'); return; }
       settings.coins -= COLOR_PRICE;
       if (!Array.isArray(settings.paint[playerKey])) settings.paint[playerKey] = [];
       settings.paint[playerKey].push(hex);
-      toast('Paint unlocked', 'gold');
       sfx.coin();
     }
     carColors[playerKey] = hex;
-    player.setColor(hex);
-    if (pv && pv.car) pv.car.setColor(hex);
+    if (settings.car === playerKey && player) player.setColor(hex);
     settings.colors = Object.assign({}, carColors);
+    pendingPaint = null;
     saveSettings();
-    dirty = true; renderGarage();
+    dirty = true;
+    renderGarage();
+    toast(purchased ? 'Paint unlocked and applied' : 'Paint applied', purchased ? 'gold' : 'green');
+  }
+  function cancelPaint() {
+    pendingPaint = null;
+    dirty = true;
+    renderGarage();
   }
   function cycleCar(d) {
+    pendingUpg = null; pendingPaint = null;
     const i = (PLAYER_KEYS.indexOf(playerKey) + d + PLAYER_KEYS.length) % PLAYER_KEYS.length;
     setPlayerCar(PLAYER_KEYS[i]);
     refreshPreviewCar(); renderGarage(); dirty = true;
   }
   function carAction() {
+    pendingUpg = null; pendingPaint = null;
     if (isOwned(playerKey)) {
       setPlayerCar(playerKey);
-      saveGarage(); renderGarage(); dirty = true;
+      saveGarage(); refreshPreviewCar(); renderGarage(); dirty = true;
       toast(CAR_MODELS[playerKey].name + ' selected', 'green');
     } else {
       const price = CAR_MODELS[playerKey].price || 0;
@@ -5852,16 +6204,17 @@
       settings.coins -= price;
       settings.owned.push(playerKey);
       setPlayerCar(playerKey);
-      saveGarage(); renderGarage(); dirty = true;
+      saveGarage(); refreshPreviewCar(); renderGarage(); dirty = true;
       toast('Bought ' + CAR_MODELS[playerKey].name + '!', 'gold');
       sfx.mission();
     }
     $('btnCarAction').blur();
   }
 
-  let pv = null;
+  let pv = null, pvW = 0, pvH = 0;
   function initPreview() {
     if (pv) return;
+    pvW = 0; pvH = 0;
     const r = new THREE.WebGLRenderer({ canvas: $('preview'), antialias: true, alpha: true });
     r.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     const sc = new THREE.Scene();
@@ -5875,10 +6228,15 @@
     cam.position.set(0, 3.5, 9.6); cam.lookAt(0, 0.7, 0);
     const pivot = new THREE.Group(); sc.add(pivot);
     pv = { r, sc, cam, pivot, car: null };
+    if (window.ResizeObserver) {
+      const ro = new ResizeObserver(() => sizePreview());
+      ro.observe($('preview'));
+    }
   }
   function sizePreview() {
-    const c = $('preview'), w = c.clientWidth, h = c.clientHeight;
-    if (!pv || !w || !h) return;
+    const c = $('preview'), w = Math.round(c.clientWidth), h = Math.round(c.clientHeight);
+    if (!pv || !w || !h || (w === pvW && h === pvH)) return;
+    pvW = w; pvH = h;
     pv.r.setSize(w, h, false); pv.cam.aspect = w / h; pv.cam.updateProjectionMatrix();
   }
   function refreshPreviewCar() {
@@ -5894,12 +6252,18 @@
 
   function showView(v) {
     if (view === 'garage' && v !== 'garage') {
+      pendingUpg = null; pendingPaint = null;
       const k = isOwned(settings.car) ? settings.car : 'metro';
       if (playerKey !== k) { setPlayerCar(k); dirty = true; }
     }
     view = v;
+    const panel = pauseEl.querySelector('.panel');
+    if (panel) panel.classList.toggle('wide', v === 'garage');
     for (const k in views) views[k].classList.toggle('show', k === v);
-    if (v === 'garage') { initPreview(); sizePreview(); refreshPreviewCar(); renderGarage(); }
+    if (v === 'garage') {
+      initPreview(); sizePreview(); refreshPreviewCar(); renderGarage();
+      requestAnimationFrame(sizePreview);
+    }
     if (v === 'missions') renderMissions();
     const f = $(v === 'garage' ? 'btnBack' : v === 'settings' ? 'btnSetBack' : v === 'missions' ? 'btnMisBack' : v === 'mainMenu' ? 'btnPlay' : 'btnContinue');
     if (f) f.focus({ preventScroll: true });
@@ -5946,6 +6310,7 @@
   btnPause.addEventListener('click', () => { if (!atMainMenu) setPaused(!paused); btnPause.blur(); });
   $('btnContinue').addEventListener('click', () => setPaused(false));
   $('btnPlay').addEventListener('click', () => {
+    if (settings.fullscreen !== false) fsRequest();
     atMainMenu = false;
     document.body.classList.remove('at-menu');
     startFreshRun();
@@ -5980,6 +6345,8 @@
   $('btnRefresh').addEventListener('click', () => { restartRun(); });
   $('btnRestart').addEventListener('click', () => { recover(); $('btnRestart').blur(); });
   $('btnCarAction').addEventListener('click', carAction);
+  $('btnPaintConfirm').addEventListener('click', applyPaint);
+  $('btnPaintCancel').addEventListener('click', cancelPaint);
   $('carPrev').addEventListener('click', () => cycleCar(-1));
   $('carNext').addEventListener('click', () => cycleCar(1));
 
@@ -6005,6 +6372,59 @@
   bindPill('pillShake', 'shake', () => {});
   bindPill('pillChase', 'chase', () => { chase.snap = true; });
 
+  const fsEl = document.documentElement;
+  function fsActive() {
+    return !!(document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement);
+  }
+  function fsRequest() {
+    if (fsActive()) return;
+    const fn = fsEl.requestFullscreen || fsEl.webkitRequestFullscreen || fsEl.msRequestFullscreen;
+    if (!fn) return;
+    try {
+      const p = fn.call(fsEl);
+      if (p && typeof p.catch === 'function') p.catch(() => {});
+    } catch (_) {}
+  }
+  function fsExit() {
+    const fn = document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen;
+    if (!fn || !fsActive()) return;
+    try {
+      const p = fn.call(document);
+      if (p && typeof p.catch === 'function') p.catch(() => {});
+    } catch (_) {}
+  }
+  const pillFs = $('pillFullscreen');
+  function syncFsPill() {
+    if (!pillFs) return;
+    const on = settings.fullscreen !== false;
+    pillFs.classList.toggle('on', on);
+    pillFs.setAttribute('aria-checked', String(on));
+  }
+  syncFsPill();
+  if (pillFs) pillFs.addEventListener('click', () => {
+    settings.fullscreen = !settings.fullscreen;
+    syncFsPill(); saveSettings();
+    if (settings.fullscreen) fsRequest(); else fsExit();
+    pillFs.blur();
+  });
+  document.addEventListener('fullscreenchange', syncFsPill);
+  document.addEventListener('webkitfullscreenchange', syncFsPill);
+  function autoFullscreen(e) {
+    if (!settings.fullscreen || fsActive()) {
+      window.removeEventListener('pointerdown', autoFullscreen, true);
+      window.removeEventListener('keydown', autoFullscreen, true);
+      return;
+    }
+    if (e && e.type === 'pointerdown' && e.target && e.target.closest && e.target.closest('#pillFullscreen')) return;
+    fsRequest();
+    window.removeEventListener('pointerdown', autoFullscreen, true);
+    window.removeEventListener('keydown', autoFullscreen, true);
+  }
+  if (settings.fullscreen !== false) {
+    window.addEventListener('pointerdown', autoFullscreen, true);
+    window.addEventListener('keydown', autoFullscreen, true);
+  }
+
   let camMode = 0;
   function setCamMode(m) {
     camMode = m; settings.cam = m; saveSettings();
@@ -6016,7 +6436,7 @@
   }
   function cycleCam() { setCamMode((camMode + 1) % 3); }
   $('tglCam').addEventListener('click', () => { cycleCam(); $('tglCam').blur(); });
-  setCamMode(0);
+  setCamMode(clamp(Math.round(Number(settings.cam) || 0), 0, 2));
 
   const PITCH0 = 0.36;
   const orbit = { yaw: 0, pitch: PITCH0, zoom: 1, tYaw: 0, tPitch: PITCH0, tZoom: 1 };
@@ -6066,8 +6486,8 @@
   })();
   const segW = $('segWheel'), segA = $('segArrows');
   const syncSeg = () => { segW.classList.toggle('on', !!settings.wheel); segA.classList.toggle('on', !settings.wheel); };
-  segW.addEventListener('click', () => { settings.wheel = true; syncSeg(); applyWheelMode(); saveSettings(); segW.blur(); });
-  segA.addEventListener('click', () => { settings.wheel = false; syncSeg(); applyWheelMode(); saveSettings(); segA.blur(); });
+  segW.addEventListener('click', () => { settings.wheel = true; settings.wheelSet = true; syncSeg(); applyWheelMode(); saveSettings(); segW.blur(); });
+  segA.addEventListener('click', () => { settings.wheel = false; settings.wheelSet = true; syncSeg(); applyWheelMode(); saveSettings(); segA.blur(); });
   syncSeg();
   applyWheelMode();
   marks.visible = settings.marks;
@@ -6245,7 +6665,7 @@
     } else {
       driftNoT += dt;
       if (driftNoT > 0.8 && driftBank > 0) {
-        const banked = Math.round(driftBank * driftCombo * 0.35);
+        const banked = Math.round(driftBank * driftCombo * 0.25);
         if (banked >= 5) {
           addCoins(banked, 'drift');
           runStats.driftTotal += banked;
@@ -6266,7 +6686,7 @@
         const dx = t.x - car.x, dz = t.z - car.z;
         if (dx * dx + dz * dz < 13) {
           t.nearCd = 3;
-          addCoins(3, 'near');
+          addCoins(2, 'near');
           runStats.nearMiss++;
           addDailyProgress('near', 1);
           sfx.coin();
@@ -6290,7 +6710,7 @@
         driftHudEl.classList.add('show');
         driftHudEl.classList.remove('banked');
         driftLabelEl.textContent = 'DRIFT';
-        driftScoreEl.textContent = Math.round(driftBank * driftCombo * 0.35);
+        driftScoreEl.textContent = Math.round(driftBank * driftCombo * 0.25);
         driftMultEl.textContent = 'x' + driftCombo.toFixed(1);
         driftFlashT = 0;
       } else if (driftFlashT > 0) {
